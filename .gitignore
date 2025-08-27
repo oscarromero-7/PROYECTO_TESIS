@@ -1,0 +1,14 @@
+# Ignorar carpetas .terraform en cualquier lugar del proyecto
+**/.terraform/
+.terraform.lock.hcl
+
+# Ignorar archivos de estado de Terraform, que pueden contener secretos
+*.tfstate
+*.tfstate.backup
+
+# Ignorar archivos de plan
+*.tfplan
+
+# Ignorar logs de errores
+crash.log
+crash.*.log
