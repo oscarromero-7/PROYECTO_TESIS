@@ -1,4 +1,6 @@
+
 apiVersion: 1
+
 datasources:
 - name: Prometheus
   type: prometheus
@@ -6,3 +8,11 @@ datasources:
   url: http://optimon_prometheus:9090
   isDefault: true
   editable: false
+  basicAuth: false
+  uid: prometheus-optimon
+  jsonData:
+    httpMethod: POST
+    manageAlerts: true
+    prometheusType: Prometheus
+    prometheusVersion: 2.40.0
+    timeInterval: 15s

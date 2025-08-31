@@ -1,20 +1,132 @@
 groups:
 - name: AlertasGenerales
   rules:
+  # === ALERTAS DE CPU ===
   - alert: AltaCargaCPU
     expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100)) > 80
     for: 5m
     labels:
       severity: warning
+      component: cpu
     annotations:
-      summary: "Alta carga de CPU detectada"
-      description: "La instancia {{ $labels.instance }} ha superado el 80% de uso de CPU durante más de 5 minutos."
+      summary: "🚨 Alta carga de CPU detectada"
+      description: "La instancia {{ $labels.instance }} ha superado el 80% de uso de CPU durante más de 5 minutos. Valor actual: {{ $value | humanize }}%"
 
+  - alert: CargaCriticaCPU
+    expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100)) > 95
+    for: 2m
+    labels:
+      severity: critical
+      component: cpu
+    annotations:
+      summary: "🔥 CRÍTICO: CPU al límite"
+      description: "La instancia {{ $labels.instance }} tiene un uso de CPU crítico: {{ $value | humanize }}%"
+
+  # === ALERTAS DE MEMORIA ===
+  - alert: AltaMemoria
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+    for: 5m
+    labels:
+      severity: warning
+      component: memory
+    annotations:
+      summary: "🧠 Alto uso de memoria RAM"
+      description: "La instancia {{ $labels.instance }} está usando {{ $value | humanize }}% de RAM"
+
+  - alert: MemoriaCritica
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+    for: 2m
+    labels:
+      severity: critical
+      component: memory
+    annotations:
+      summary: "🔴 CRÍTICO: Memoria RAM agotada"
+      description: "La instancia {{ $labels.instance }} tiene memoria RAM crítica: {{ $value | humanize }}%"
+
+  # === ALERTAS DE DISCO ===
+  - alert: DiscoLleno
+    expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 85
+    for: 5m
+    labels:
+      severity: warning
+      component: disk
+    annotations:
+      summary: "💾 Espacio en disco bajo"
+      description: "El disco en {{ $labels.instance }} está al {{ $value | humanize }}% de capacidad"
+
+  - alert: DiscoCritico
+    expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 95
+    for: 2m
+    labels:
+      severity: critical
+      component: disk
+    annotations:
+      summary: "🆘 CRÍTICO: Disco casi lleno"
+      description: "El disco en {{ $labels.instance }} está al {{ $value | humanize }}% - ¡Espacio crítico!"
+
+  # === ALERTAS DE RED ===
+  - alert: AltaRedSubida
+    expr: rate(node_network_transmit_bytes_total{device!="lo"}[5m]) > 100000000  # 100MB/s
+    for: 10m
+    labels:
+      severity: warning
+      component: network
+    annotations:
+      summary: "📤 Alto tráfico de subida"
+      description: "Tráfico de subida elevado en {{ $labels.instance }}: {{ $value | humanize1024 }}B/s"
+
+  - alert: AltaRedBajada
+    expr: rate(node_network_receive_bytes_total{device!="lo"}[5m]) > 100000000  # 100MB/s
+    for: 10m
+    labels:
+      severity: warning
+      component: network
+    annotations:
+      summary: "📥 Alto tráfico de bajada"
+      description: "Tráfico de bajada elevado en {{ $labels.instance }}: {{ $value | humanize1024 }}B/s"
+
+  # === ALERTAS DE DISPONIBILIDAD ===
   - alert: InstanciaNoDisponible
     expr: up == 0
     for: 1m
     labels:
       severity: critical
+      component: availability
     annotations:
-      summary: "Un exporter de métricas está caído"
-      description: "El job '{{ $labels.job }}' en la instancia {{ $labels.instance }} no está respondiendo."
+      summary: "🔌 Servidor no disponible"
+      description: "El job '{{ $labels.job }}' en la instancia {{ $labels.instance }} no está respondiendo"
+
+  - alert: ExporterCaido
+    expr: up{job!="prometheus"} == 0
+    for: 3m
+    labels:
+      severity: warning
+      component: monitoring
+    annotations:
+      summary: "📊 Exporter de métricas caído"
+      description: "El exporter '{{ $labels.job }}' no está enviando métricas desde hace 3 minutos"
+
+  # === ALERTAS DE I/O DISCO ===
+  - alert: AltaIODisco
+    expr: rate(node_disk_read_bytes_total[5m]) + rate(node_disk_written_bytes_total[5m]) > 50000000  # 50MB/s
+    for: 15m
+    labels:
+      severity: warning
+      component: disk_io
+    annotations:
+      summary: "💿 Alto I/O de disco"
+      description: "I/O de disco elevado en {{ $labels.instance }}: {{ $value | humanize1024 }}B/s"
+
+# === GRUPO DE ALERTAS PERSONALIZABLES ===
+- name: AlertasPersonalizadas
+  rules:
+  # Agrega aquí tus alertas personalizadas
+  # Ejemplo:
+  # - alert: MiAlertaCustom
+  #   expr: mi_metrica > 100
+  #   for: 5m
+  #   labels:
+  #     severity: info
+  #   annotations:
+  #     summary: "Mi alerta personalizada"
+  #     description: "Descripción de mi alerta"
