@@ -1,7 +1,7 @@
-# Aquí iría la configuración del proveedor y del grupo de recursos si no los defines en el módulo.
-# Por simplicidad, asumimos que el módulo se encarga de todo.
-module "vm" {
-  source = "./modulos/vm"
-  vm_password = var.vm_password
-  # Puedes añadir más variables aquí si las necesitas (ej. nombre del grupo de recursos, ubicación)
+module "aws_ec2" {
+  source = "./modulos/aws"
+  
+  aws_region    = var.aws_region
+  key_name      = var.key_name
+  instance_type = var.instance_type
 }

@@ -1,9 +1,9 @@
-output "vm_public_ip" {
-  description = "La IP pública de la máquina virtual."
-  value       = azurerm_public_ip.pip.ip_address
+output "instance_public_ip" {
+  description = "Public IP address of the EC2 instance"
+  value       = module.aws_ec2.instance_public_ip
 }
 
-output "vm_private_ip" {
-  description = "La IP privada de la máquina virtual."
-  value       = azurerm_network_interface.nic.private_ip_address
+output "instance_private_ip" {
+  description = "Private IP address of the EC2 instance"
+  value       = module.aws_ec2.instance_private_ip
 }

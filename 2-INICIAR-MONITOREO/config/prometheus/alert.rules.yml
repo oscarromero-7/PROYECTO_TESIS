@@ -117,6 +117,67 @@ groups:
       summary: "💿 Alto I/O de disco"
       description: "I/O de disco elevado en {{ $labels.instance }}: {{ $value | humanize1024 }}B/s"
 
+# === ALERTAS ESPECÍFICAS PARA WINDOWS ===
+- name: AlertasWindows
+  rules:
+  - alert: AltaCargaCPUWindows
+    expr: 100 - (avg by (instance) (rate(windows_cpu_time_total{mode="idle"}[2m])) * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+      component: cpu
+      platform: windows
+    annotations:
+      summary: "🚨 Alta carga de CPU en Windows"
+      description: "El servidor Windows {{ $labels.instance }} supera 80% de CPU: {{ $value | humanize }}%"
+
+  - alert: AltaMemoriaWindows
+    expr: (1 - (windows_os_physical_memory_free_bytes / windows_cs_physical_memory_bytes)) * 100 > 85
+    for: 5m
+    labels:
+      severity: warning
+      component: memory
+      platform: windows
+    annotations:
+      summary: "🧠 Alta memoria RAM en Windows"
+      description: "El servidor Windows {{ $labels.instance }} usa {{ $value | humanize }}% de RAM"
+
+  - alert: DiscoWindowsLleno
+    expr: (1 - (windows_logical_disk_free_bytes{volume="C:"} / windows_logical_disk_size_bytes{volume="C:"})) * 100 > 85
+    for: 5m
+    labels:
+      severity: warning
+      component: disk
+      platform: windows
+    annotations:
+      summary: "💾 Disco C: lleno en Windows"
+      description: "El disco C: en {{ $labels.instance }} está al {{ $value | humanize }}%"
+
+# === ALERTAS ESPECÍFICAS PARA CLOUD ===
+- name: AlertasCloud
+  rules:
+  - alert: CreditsAWSBajos
+    expr: increase(aws_billing_estimated_charges_total[24h]) > 10
+    for: 1h
+    labels:
+      severity: warning
+      component: billing
+      platform: aws
+    annotations:
+      summary: "💰 Gastos AWS elevados"
+      description: "Los gastos de AWS han aumentado: ${{ $value | humanize }} en 24h"
+
+  - alert: RateLimitCloud
+    expr: increase(node_network_receive_drop_total[5m]) > 100
+    for: 5m
+    labels:
+      severity: warning
+      component: network
+      platform: cloud
+    annotations:
+      summary: "⚠️ Posible rate limiting"
+      description: "Paquetes dropeados en {{ $labels.instance }}: {{ $value | humanize }}"
+
 # === GRUPO DE ALERTAS PERSONALIZABLES ===
 - name: AlertasPersonalizadas
   rules:
@@ -130,3 +191,26 @@ groups:
   #   annotations:
   #     summary: "Mi alerta personalizada"
   #     description: "Descripción de mi alerta"
+
+# === ALERTAS DE SEGURIDAD BÁSICAS ===
+- name: AlertasSeguridad
+  rules:
+  - alert: ConexionesSospechosas
+    expr: increase(node_netstat_Tcp_CurrEstab[5m]) > 500
+    for: 2m
+    labels:
+      severity: warning
+      component: security
+    annotations:
+      summary: "🔒 Muchas conexiones TCP"
+      description: "Alto número de conexiones TCP en {{ $labels.instance }}: {{ $value | humanize }}"
+
+  - alert: ProcesosSospechosos
+    expr: node_procs_running > 300
+    for: 10m
+    labels:
+      severity: info
+      component: security
+    annotations:
+      summary: "⚡ Muchos procesos ejecutándose"
+      description: "Número elevado de procesos en {{ $labels.instance }}: {{ $value | humanize }}"
