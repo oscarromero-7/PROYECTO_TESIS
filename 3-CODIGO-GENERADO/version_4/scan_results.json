@@ -1,0 +1,16 @@
+{
+  "local": {
+    "type": "local",
+    "containers": [],
+    "system_specs": {
+      "cpu_cores": 12,
+      "memory_gb": 15.71,
+      "disk_gb": 457.61
+    },
+    "services": [
+      "prometheus",
+      "grafana",
+      "node_exporter"
+    ]
+  }
+}

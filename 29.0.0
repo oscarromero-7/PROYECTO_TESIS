@@ -1,0 +1,23 @@
+Collecting azure-mgmt-compute
+  Downloading azure_mgmt_compute-36.0.0-py3-none-any.whl.metadata (76 kB)
+Collecting isodate>=0.6.1 (from azure-mgmt-compute)
+  Downloading isodate-0.7.2-py3-none-any.whl.metadata (11 kB)
+Requirement already satisfied: typing-extensions>=4.6.0 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from azure-mgmt-compute) (4.12.2)
+Collecting azure-common>=1.1 (from azure-mgmt-compute)
+  Downloading azure_common-1.1.28-py2.py3-none-any.whl.metadata (5.0 kB)
+Collecting azure-mgmt-core>=1.6.0 (from azure-mgmt-compute)
+  Downloading azure_mgmt_core-1.6.0-py3-none-any.whl.metadata (4.6 kB)
+Requirement already satisfied: azure-core>=1.32.0 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from azure-mgmt-core>=1.6.0->azure-mgmt-compute) (1.35.1)
+Requirement already satisfied: requests>=2.21.0 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from azure-core>=1.32.0->azure-mgmt-core>=1.6.0->azure-mgmt-compute) (2.32.3)
+Requirement already satisfied: six>=1.11.0 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from azure-core>=1.32.0->azure-mgmt-core>=1.6.0->azure-mgmt-compute) (1.17.0)
+Requirement already satisfied: charset-normalizer<4,>=2 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from requests>=2.21.0->azure-core>=1.32.0->azure-mgmt-core>=1.6.0->azure-mgmt-compute) (3.4.1)
+Requirement already satisfied: idna<4,>=2.5 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from requests>=2.21.0->azure-core>=1.32.0->azure-mgmt-core>=1.6.0->azure-mgmt-compute) (3.10)
+Requirement already satisfied: urllib3<3,>=1.21.1 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from requests>=2.21.0->azure-core>=1.32.0->azure-mgmt-core>=1.6.0->azure-mgmt-compute) (2.3.0)
+Requirement already satisfied: certifi>=2017.4.17 in c:\users\matias\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from requests>=2.21.0->azure-core>=1.32.0->azure-mgmt-core>=1.6.0->azure-mgmt-compute) (2025.1.31)
+Downloading azure_mgmt_compute-36.0.0-py3-none-any.whl (627 kB)
+   ---------------------------------------- 627.5/627.5 kB 3.9 MB/s eta 0:00:00
+Downloading azure_common-1.1.28-py2.py3-none-any.whl (14 kB)
+Downloading azure_mgmt_core-1.6.0-py3-none-any.whl (29 kB)
+Downloading isodate-0.7.2-py3-none-any.whl (22 kB)
+Installing collected packages: azure-common, isodate, azure-mgmt-core, azure-mgmt-compute
+Successfully installed azure-common-1.1.28 azure-mgmt-compute-36.0.0 azure-mgmt-core-1.6.0 isodate-0.7.2

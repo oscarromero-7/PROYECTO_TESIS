@@ -1,22 +1,20 @@
-global: 
-  scrape_interval: 15s 
-  evaluation_interval: 15s 
- 
-rule_files: 
-  - "alert.rules.yml" 
- 
-alerting: 
-  alertmanagers: 
-    - static_configs: 
-        - targets: [] 
- 
-scrape_configs: 
-  - job_name: "prometheus" 
-    static_configs: 
-      - targets: ["localhost:9090"] 
- 
-  - job_name: "azure_vm" 
-    static_configs: 
-      - targets: [":9100"] 
-    scrape_interval: 30s 
-    scrape_timeout: 10s 
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert.rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "windows_exporter"
+    static_configs:
+      - targets: ["host.docker.internal:9182"]
