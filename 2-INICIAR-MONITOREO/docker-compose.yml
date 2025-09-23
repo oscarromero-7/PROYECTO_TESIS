@@ -22,3 +22,12 @@ services:
       - "3000:3000"
     restart: unless-stopped
 
+  # Solo incluir si vas a monitorear el host local Windows
+  windows-exporter:
+    image: ghcr.io/prometheus-community/windows-exporter:latest
+    container_name: optimon_windows_exporter
+    ports:
+      - "9182:9182"
+    restart: unless-stopped
+    profiles:
+      - local-windows

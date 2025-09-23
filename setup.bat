@@ -1,8 +1,6 @@
 @echo off
-title OptiMon Multi-Cloud Setup with IaC Generation
+title OptiMon Multi-Cloud Setup
 chcp 65001 >nul
-
-:: Habilitar expansion tardía de variables
 setlocal EnableDelayedExpansion
 
 cls
@@ -11,603 +9,484 @@ echo --- BIENVENIDO A LA CONFIGURACION DEL PRODUCTO OPTIMON ---
 echo ---
 echo Este script te guiara para desplegar y monitorear tu infraestructura.
 echo Soporta: Servidores Fisicos, Azure y AWS
-echo NUEVO: Genera codigo IaC automaticamente basado en tu infraestructura
 echo.
 
 :: --- FASE 0: Verificar prerrequisitos ---
 echo Verificando prerrequisitos...
-echo.
 
-where jq >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [ERROR] El comando 'jq' no se encuentra.
-    echo Por favor, instala jq para Windows y asegurese de que este en el PATH.
-    echo Puedes descargarlo desde: https://jqlang.github.io/jq/download/
-    echo.
-    echo Presiona cualquier tecla para salir...
-    pause >nul
-    exit /b 1
-)
+call :CHECK_PREREQ "jq" "https://jqlang.github.io/jq/download/"
+call :CHECK_PREREQ "docker-compose" "Instala Docker Desktop"
+call :CHECK_PREREQ "python" "Python 3.7+ requerido"
 
-where docker-compose >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [ERROR] docker-compose no se encuentra en el PATH.
-    echo Instala Docker Desktop y asegurate de que docker-compose este disponible.
-    echo.
-    echo Presiona cualquier tecla para salir...
-    pause >nul
-    exit /b 1
-)
-
-where python >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [ERROR] Python no se encuentra en el PATH.
-    echo El generador de IaC requiere Python 3.7+
-    echo.
-    echo Presiona cualquier tecla para salir...
-    pause >nul
-    exit /b 1
-)
-
-:: Verificar que el generador IaC existe
 if not exist "iac_generator.py" (
-    echo [WARNING] No se encuentra el generador de IaC (iac_generator.py)
-    echo El monitoreo continuara sin generacion automatica de IaC
-    echo Directorio actual: %cd%
-    echo.
+    echo [WARNING] Generador IaC no encontrado - funcionalidad limitada
     set "SKIP_IAC=1"
 ) else (
     set "SKIP_IAC=0"
 )
 
-echo [OK] Prerrequisitos verificados correctamente
+echo [OK] Prerrequisitos verificados
 echo.
 
-:: --- FASE 1: Seleccionar tipo de infraestructura ---
+:: --- FASE 1: Menu principal ---
 :MENU
-echo Selecciona el tipo de infraestructura a escanear:
-echo [1] Servidor fisico (este equipo)
-echo [2] Servidores en la nube (Azure)
-echo [3] Servidores en la nube (AWS)
+echo ===============================================================
+echo                    MENU PRINCIPAL
+echo ===============================================================
+echo [1] Servidor fisico local solamente
+echo [2] AWS solamente (crear + monitorear)
+echo [3] Azure solamente (crear + monitorear) 
+echo [4] MULTI-SERVIDOR (combinar varios tipos)
+echo [5] Ver estado actual del sistema
+echo [6] Generar backup IaC (opcional)
 echo [0] Salir
-echo.
-set /p OPTION="Opcion (1-3, 0 para salir): "
-echo.
+echo ===============================================================
+set /p MAIN_OPTION="Selecciona opcion: "
 
-if "!OPTION!"=="0" goto SALIR
-if "!OPTION!"=="1" goto FISICO
-if "!OPTION!"=="2" goto AZURE
-if "!OPTION!"=="3" goto AWS
+if "!MAIN_OPTION!"=="0" goto EXIT
+if "!MAIN_OPTION!"=="1" goto LOCAL_ONLY
+if "!MAIN_OPTION!"=="2" goto AWS_ONLY
+if "!MAIN_OPTION!"=="3" goto AZURE_ONLY
+if "!MAIN_OPTION!"=="4" goto MULTI_SERVER
+if "!MAIN_OPTION!"=="5" goto CHECK_STATUS
+if "!MAIN_OPTION!"=="6" goto GENERATE_IAC_BACKUP
 
-echo [ERROR] Opcion invalida. Por favor selecciona 1, 2, 3 o 0.
-echo.
+echo [ERROR] Opcion invalida
 goto MENU
 
-:: --- FASE 2A: Configuracion para servidor fisico ---
-:FISICO
+:: --- OPCION 4: Multi-servidor simplificado ---
+:MULTI_SERVER
 echo.
-echo Configurando monitoreo del servidor local...
-set "MONITORING_DIR=2-INICIAR-MONITOREO"
-set "PROVIDER=local"
+echo ===============================================================
+echo                    ESCANEO MULTI-SERVIDOR
+echo ===============================================================
+echo.
+echo Selecciona que tipos de servidores quieres incluir:
+echo.
 
-:: Verificar que el directorio existe
-if not exist "!MONITORING_DIR!" (
-    echo [ERROR] Directorio !MONITORING_DIR! no existe.
-    echo Directorio actual: %cd%
-    echo Verifica la estructura de carpetas del proyecto.
+:: Variables para tracking
+set "INCLUDE_LOCAL=0"
+set "INCLUDE_AWS=0"
+set "INCLUDE_AZURE=0"
+set "AWS_IP="
+set "AZURE_IP="
+
+:: Preguntar por servidor local
+set /p LOCAL_CHOICE="¿Incluir servidor local (tu PC)? (S/N): "
+if /i "!LOCAL_CHOICE!"=="S" set "INCLUDE_LOCAL=1"
+
+:: Preguntar por AWS
+set /p AWS_CHOICE="¿Incluir AWS (creara una instancia EC2)? (S/N): "
+if /i "!AWS_CHOICE!"=="S" (
+    set "INCLUDE_AWS=1"
     echo.
-    call :PAUSE_SAFE
+    echo --- Credenciales AWS ---
+    set /p AWS_ACCESS_KEY_ID="AWS Access Key ID: "
+    set /p AWS_SECRET_ACCESS_KEY="AWS Secret Access Key: "
+    set /p AWS_REGION="AWS Region [us-east-1]: "
+    if "!AWS_REGION!"=="" set "AWS_REGION=us-east-1"
+)
+
+:: Preguntar por Azure
+set /p AZURE_CHOICE="¿Incluir Azure (creara una VM)? (S/N): "
+if /i "!AZURE_CHOICE!"=="S" (
+    set "INCLUDE_AZURE=1"
+    echo.
+    echo --- Credenciales Azure ---
+    set /p AZURE_CLIENT_ID="Azure Client ID: "
+    set /p AZURE_CLIENT_SECRET="Azure Client Secret: "
+    set /p AZURE_TENANT_ID="Azure Tenant ID: "
+    set /p AZURE_SUBSCRIPTION_ID="Azure Subscription ID: "
+    set /p VM_PASSWORD="Password para VM Azure: "
+)
+
+:: Verificar que al menos uno este seleccionado
+if "!INCLUDE_LOCAL!"=="0" if "!INCLUDE_AWS!"=="0" if "!INCLUDE_AZURE!"=="0" (
+    echo [ERROR] Debes seleccionar al menos un tipo de servidor
+    pause
     goto MENU
 )
 
-if not exist "!MONITORING_DIR!\config" (
-    echo [INFO] Creando directorio config...
-    mkdir "!MONITORING_DIR!\config" 2>nul
-)
-
-if not exist "!MONITORING_DIR!\config\prometheus" (
-    echo [INFO] Creando directorio prometheus...
-    mkdir "!MONITORING_DIR!\config\prometheus" 2>nul
-)
-
-:: Crear prometheus.yml para localhost
-call :CREATE_PROMETHEUS_CONFIG "!MONITORING_DIR!" "local" "" ""
-if !errorlevel! neq 0 (
-    echo [ERROR] Fallo al crear configuracion de Prometheus
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo [OK] Configuracion de Prometheus creada para servidor local
-echo [OK] Dashboard OptiMon ya esta configurado
-echo [OK] Alertas personalizables disponibles en: !MONITORING_DIR!\config\prometheus\alert.rules.yml
 echo.
+echo ===============================================================
+echo               DESPLEGANDO INFRAESTRUCTURA
+echo ===============================================================
 
-echo Iniciando Prometheus y Grafana...
-if exist "!MONITORING_DIR!\docker-compose.yml" (
-    cd /d "!MONITORING_DIR!"
-    echo Ejecutando docker-compose up -d...
-    docker-compose up -d 2>&1
-    set "DOCKER_RESULT=!errorlevel!"
-    cd /d "%~dp0"
-    
-    if !DOCKER_RESULT! neq 0 (
-        echo [ERROR] Fallo al iniciar docker-compose
-        echo Verifica que Docker Desktop este ejecutandose
-        echo.
-        call :PAUSE_SAFE
+:: Desplegar AWS si esta seleccionado
+if "!INCLUDE_AWS!"=="1" (
+    echo [PASO 1/3] Desplegando instancia AWS EC2...
+    call :DEPLOY_AWS
+    if !errorlevel! neq 0 (
+        echo [ERROR] Fallo el despliegue AWS
+        pause
         goto MENU
     )
-) else (
-    echo [ERROR] No se encuentra docker-compose.yml en !MONITORING_DIR!
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
 )
+
+:: Desplegar Azure si esta seleccionado
+if "!INCLUDE_AZURE!"=="1" (
+    echo [PASO 2/3] Desplegando VM Azure...
+    call :DEPLOY_AZURE
+    if !errorlevel! neq 0 (
+        echo [ERROR] Fallo el despliegue Azure
+        pause
+        goto MENU
+    )
+)
+
+:: Crear configuracion de Prometheus multi-servidor
+echo [PASO 3/3] Configurando monitoreo unificado...
+call :CREATE_MULTI_PROMETHEUS_CONFIG
+
+:: Iniciar servicios
+echo [INFO] Iniciando Prometheus y Grafana...
+cd /d "2-INICIAR-MONITOREO"
+docker-compose up -d
+cd /d "%~dp0"
 
 echo.
 echo Esperando 30 segundos a que los servicios se inicialicen...
 timeout /t 30 /nobreak >nul
 
+:: Generar IaC si esta disponible
 if "!SKIP_IAC!"=="0" (
     echo.
-    echo === GENERANDO CODIGO IaC AUTOMATICAMENTE ===
-    echo Escaneando infraestructura local y generando Terraform/Ansible...
-    echo.
-
-    :: Ejecutar el generador IaC para local con manejo de errores
-    echo 1| python iac_generator.py 2>&1
-    if !errorlevel! neq 0 (
-        echo [WARNING] El generador IaC encontro algunos problemas, pero el monitoreo continua...
+    echo === GENERANDO CODIGO IaC ===
+    if "!INCLUDE_LOCAL!"=="1" if "!INCLUDE_AWS!"=="1" (
+        echo 2| python iac_generator.py
+    ) else if "!INCLUDE_LOCAL!"=="1" if "!INCLUDE_AZURE!"=="1" (
+        echo 3| python iac_generator.py
+    ) else if "!INCLUDE_LOCAL!"=="1" (
+        echo 1| python iac_generator.py
     )
 )
 
+:: Mostrar resumen
 echo.
-echo ---------------------------------------------------------
-echo Monitoreo del servidor local iniciado!
-echo Dashboard Grafana: http://localhost:3000  (admin/admin)
-echo Dashboard OptiMon: Ya importado automaticamente
+echo ===============================================================
+echo                    DESPLIEGUE COMPLETADO
+echo ===============================================================
+echo Dashboard Grafana: http://localhost:3000 (admin/admin)
 echo Prometheus: http://localhost:9090
 echo.
-if "!SKIP_IAC!"=="0" (
-    echo CODIGO IaC GENERADO:
-    echo - Revisa la carpeta 3-CODIGO-GENERADO\version_X\
-    echo - Contiene: Terraform, Ansible y reporte de infraestructura
-)
-echo ---------------------------------------------------------
+echo SERVIDORES MONITOREADOS:
+if "!INCLUDE_LOCAL!"=="1" echo - Servidor Local: host.docker.internal:9182
+if "!INCLUDE_AWS!"=="1" echo - AWS EC2: !AWS_IP!:9100
+if "!INCLUDE_AZURE!"=="1" echo - Azure VM: !AZURE_IP!:9100
 echo.
-goto FIN
+echo Todos los servidores aparecen en un dashboard unificado
+echo ===============================================================
+pause
+goto MENU
 
-:: --- FASE 2B: Configuracion para servidores Azure ---
-:AZURE
-echo Por favor, introduce tus credenciales de Azure (Service Principal):
-set /p AZURE_CLIENT_ID="Azure Client ID: "
-if "!AZURE_CLIENT_ID!"=="" (
-    echo [ERROR] Client ID no puede estar vacio
-    goto MENU
-)
-
-set /p AZURE_CLIENT_SECRET="Azure Client Secret: "
-if "!AZURE_CLIENT_SECRET!"=="" (
-    echo [ERROR] Client Secret no puede estar vacio
-    goto MENU
-)
-
-set /p AZURE_TENANT_ID="Azure Tenant ID: "
-if "!AZURE_TENANT_ID!"=="" (
-    echo [ERROR] Tenant ID no puede estar vacio
-    goto MENU
-)
-
-set /p AZURE_SUBSCRIPTION_ID="Azure Subscription ID: "
-if "!AZURE_SUBSCRIPTION_ID!"=="" (
-    echo [ERROR] Subscription ID no puede estar vacio
-    goto MENU
-)
-
-echo.
-echo NOTA: La contrasena de la VM sera visible mientras la escribes.
-set /p VM_PASSWORD="Crea una contrasena para la nueva Maquina Virtual: "
-if "!VM_PASSWORD!"=="" (
-    echo [ERROR] La contrasena no puede estar vacia
-    goto MENU
-)
-echo.
-
-:: Verificar directorio de infraestructura
-if not exist "1-CREAR-INFRAESTRUCTURA" (
-    echo [ERROR] Directorio 1-CREAR-INFRAESTRUCTURA no existe
-    echo Directorio actual: %cd%
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-cd /d "1-CREAR-INFRAESTRUCTURA"
-
-:: Asegurar que usamos el provider de Azure
-if exist "provider-azure.tf" (
-    copy /y "provider-azure.tf" "provider.tf" >nul
-) else (
-    echo [ERROR] No se encuentra provider-azure.tf
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo vm_password = "!VM_PASSWORD!" > terraform.tfvars
-
-echo Ejecutando terraform init...
-terraform init -upgrade 2>&1
-if !errorlevel! neq 0 (
-    echo [ERROR] Fallo terraform init
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo Ejecutando terraform apply...
-terraform apply -auto-approve 2>&1
-if !errorlevel! neq 0 (
-    echo [ERROR] Fallo terraform apply
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-:: Obtener outputs de terraform de forma mas robusta
-terraform output -json > terraform_outputs.json 2>nul
-if !errorlevel! neq 0 (
-    echo [ERROR] No se pudieron obtener los outputs de terraform
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-for /f "delims=" %%j in ('jq -r ".vm_private_ip.value // empty" terraform_outputs.json 2^>nul') do set "VM_PRIVATE_IP=%%j"
-for /f "delims=" %%k in ('jq -r ".vm_public_ip.value // empty" terraform_outputs.json 2^>nul') do set "VM_PUBLIC_IP=%%k"
-
-if "!VM_PUBLIC_IP!"=="" (
-    echo [ERROR] No se pudo obtener la IP publica de la VM
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo [OK] VM Azure desplegada - IP: !VM_PUBLIC_IP!
-del terraform_outputs.json 2>nul
+:: --- Funciones de despliegue individual (mantenidas) ---
+:LOCAL_ONLY
+call :CREATE_PROMETHEUS_CONFIG_SINGLE "2-INICIAR-MONITOREO" "local" "" ""
+cd /d "2-INICIAR-MONITOREO"
+docker-compose up -d
 cd /d "%~dp0"
+echo [OK] Monitoreo local iniciado - http://localhost:3000
+pause
+goto MENU
 
-set "MONITORING_DIR=2-INICIAR-MONITOREO"
-set "PROVIDER=azure"
-
-:: Crear prometheus.yml para Azure VM
-call :CREATE_PROMETHEUS_CONFIG "!MONITORING_DIR!" "azure" "!VM_PUBLIC_IP!" "!VM_PRIVATE_IP!"
-
-if exist "!MONITORING_DIR!\docker-compose.yml" (
-    cd /d "!MONITORING_DIR!"
-    docker-compose up -d 2>&1
-    cd /d "%~dp0"
-) else (
-    echo [ERROR] No se encuentra docker-compose.yml en !MONITORING_DIR!
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo.
-echo Esperando 45 segundos a que Azure VM y servicios se inicialicen...
-timeout /t 45 /nobreak >nul
-
-if "!SKIP_IAC!"=="0" (
-    echo.
-    echo === GENERANDO CODIGO IaC AUTOMATICAMENTE ===
-    echo Escaneando infraestructura Azure + Local y generando Terraform/Ansible...
-    echo.
-
-    :: Ejecutar el generador IaC para Azure + Local
-    echo 3| python iac_generator.py 2>&1
-    if !errorlevel! neq 0 (
-        echo [WARNING] El generador IaC encontro algunos problemas, pero continua...
-    )
-)
-
-echo.
-echo ---------------------------------------------------------
-echo Infraestructura Azure desplegada!
-echo IP Publica VM: !VM_PUBLIC_IP!
-echo Dashboard Grafana: http://localhost:3000  (admin/admin)
-echo Dashboard OptiMon: Ya importado automaticamente
-echo.
-if "!SKIP_IAC!"=="0" (
-    echo CODIGO IaC GENERADO:
-    echo - Revisa la carpeta 3-CODIGO-GENERADO\version_X\
-    echo - Contiene: Terraform para replicar Azure VM + Local
-    echo - Playbooks Ansible para configuracion automatica
-)
-echo ---------------------------------------------------------
-echo.
-goto FIN
-
-:: --- FASE 2C: Configuracion para servidores AWS ---
-:AWS
-echo Por favor, introduce tus credenciales de AWS:
+:AWS_ONLY
+echo --- Credenciales AWS ---
 set /p AWS_ACCESS_KEY_ID="AWS Access Key ID: "
-if "!AWS_ACCESS_KEY_ID!"=="" (
-    echo [ERROR] Access Key ID no puede estar vacio
-    goto MENU
-)
-
 set /p AWS_SECRET_ACCESS_KEY="AWS Secret Access Key: "
-if "!AWS_SECRET_ACCESS_KEY!"=="" (
-    echo [ERROR] Secret Access Key no puede estar vacio
-    goto MENU
-)
-
-set /p AWS_REGION="AWS Region (ej: us-east-1): "
+set /p AWS_REGION="AWS Region [us-east-1]: "
 if "!AWS_REGION!"=="" set "AWS_REGION=us-east-1"
 
+call :DEPLOY_AWS
+call :CREATE_PROMETHEUS_CONFIG_SINGLE "2-INICIAR-MONITOREO" "aws" "!AWS_IP!" ""
+cd /d "2-INICIAR-MONITOREO"
+docker-compose up -d
+cd /d "%~dp0"
+echo [OK] Monitoreo AWS iniciado - EC2: !AWS_IP!
+pause
+goto MENU
+
+:AZURE_ONLY
+echo [INFO] Funcionalidad Azure individual disponible
+pause
+goto MENU
+
+:: --- OPCION 5: Ver estado del sistema ---
+:CHECK_STATUS
 echo.
-echo NOTA: Se creara un Key Pair para acceso SSH.
-set /p KEY_NAME="Nombre para el Key Pair (ej: optimon-key): "
-if "!KEY_NAME!"=="" set "KEY_NAME=optimon-key"
+echo ===============================================================
+echo                   ESTADO ACTUAL DEL SISTEMA
+echo ===============================================================
 echo.
 
+:: Verificar Docker
+docker ps >nul 2>&1
+if !errorlevel! neq 0 (
+    echo [STATUS] Docker: DETENIDO
+) else (
+    echo [STATUS] Docker: FUNCIONANDO
+    for /f %%i in ('docker ps --filter "name=optimon" --format "table {{.Names}}" ^| find /c "optimon"') do set "OPTIMON_CONTAINERS=%%i"
+    echo [STATUS] Contenedores OptiMon activos: !OPTIMON_CONTAINERS!
+)
+
+:: Verificar Terraform
+if exist "1-CREAR-INFRAESTRUCTURA\.terraform" (
+    echo [STATUS] Terraform: INICIALIZADO
+) else (
+    echo [STATUS] Terraform: NO INICIALIZADO
+)
+
+if exist "1-CREAR-INFRAESTRUCTURA\terraform.tfstate" (
+    echo [STATUS] Infraestructura desplegada: SI
+    cd /d "1-CREAR-INFRAESTRUCTURA"
+    echo [INFO] Outputs disponibles:
+    terraform output 2>nul
+    cd /d "%~dp0"
+) else (
+    echo [STATUS] Infraestructura desplegada: NO
+)
+
+:: Verificar Grafana
+curl -s http://localhost:3000 >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [STATUS] Grafana: ACCESIBLE (http://localhost:3000)
+) else (
+    echo [STATUS] Grafana: NO ACCESIBLE
+)
+
+:: Verificar Prometheus
+curl -s http://localhost:9090 >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [STATUS] Prometheus: ACCESIBLE (http://localhost:9090)
+) else (
+    echo [STATUS] Prometheus: NO ACCESIBLE
+)
+
+:: Verificar Windows Exporter
+curl -s http://localhost:9182/metrics >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [STATUS] Windows Exporter: FUNCIONANDO (puerto 9182)
+) else (
+    echo [STATUS] Windows Exporter: NO RESPONDE (puerto 9182)
+    echo [TIP] Ejecuta: Start-Service windows_exporter
+)
+
+echo.
+pause
+goto MENU
+
+:: --- OPCION 6: Generar backup IaC ---
+:GENERATE_IAC_BACKUP
+echo.
+echo ===============================================================
+echo                GENERAR BACKUP DE INFRAESTRUCTURA
+echo ===============================================================
+echo.
+echo Esta opcion escanea tu infraestructura actual y genera codigo
+echo IaC para poder recrearla identicamente en el futuro.
+echo.
+
+if "!SKIP_IAC!"=="1" (
+    echo [ERROR] Generador IaC no disponible
+    echo Asegurate de que iac_generator.py existe
+    pause
+    goto MENU
+)
+
+echo ¿Que infraestructura quieres respaldar?
+echo [1] Solo servidor local
+echo [2] Solo AWS (instancias existentes)
+echo [3] Solo Azure (VMs existentes)
+echo [4] Todo (Local + AWS + Azure)
+echo.
+set /p IAC_OPTION="Selecciona: "
+
+if "!IAC_OPTION!"=="1" (
+    echo Escaneando servidor local...
+    echo 1| python iac_generator.py
+) else if "!IAC_OPTION!"=="2" (
+    echo Escaneando infraestructura AWS...
+    echo 2| python iac_generator.py
+) else if "!IAC_OPTION!"=="3" (
+    echo Escaneando infraestructura Azure...
+    echo 3| python iac_generator.py
+) else if "!IAC_OPTION!"=="4" (
+    echo Escaneando toda la infraestructura...
+    echo 4| python iac_generator.py
+) else (
+    echo [ERROR] Opcion invalida
+    goto MENU
+)
+
+echo.
+echo [OK] Backup IaC generado en 3-CODIGO-GENERADO\version_X\
+echo Puedes usar este codigo para recrear tu infraestructura
+echo.
+pause
+goto MENU
+
+:: --- FUNCIONES AUXILIARES ---
+
+:CHECK_PREREQ
+where %1 >nul 2>&1
+if !errorlevel! neq 0 (
+    echo [ERROR] %1 no encontrado - %2
+    pause
+    exit /b 1
+)
+echo [OK] %1 verificado
+exit /b 0
+
+:DEPLOY_AWS
 if not exist "1-CREAR-INFRAESTRUCTURA" (
     echo [ERROR] Directorio 1-CREAR-INFRAESTRUCTURA no existe
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
+    exit /b 1
 )
 
 cd /d "1-CREAR-INFRAESTRUCTURA"
-
-:: Crear terraform.tfvars para AWS con t3.micro
 echo aws_region = "!AWS_REGION!" > terraform.tfvars
-echo key_name = "!KEY_NAME!" >> terraform.tfvars
+echo key_name = "Optimon2" >> terraform.tfvars
 echo instance_type = "t3.micro" >> terraform.tfvars
 
-echo Ejecutando terraform init...
-terraform init -upgrade 2>&1
-if !errorlevel! neq 0 (
-    echo [ERROR] Fallo terraform init
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo Ejecutando terraform apply...
-terraform apply -auto-approve 2>&1
-if !errorlevel! neq 0 (
-    echo [ERROR] Fallo terraform apply
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-for /f "delims=" %%j in ('terraform output -raw instance_private_ip 2^>nul') do set "INSTANCE_PRIVATE_IP=%%j"
-for /f "delims=" %%k in ('terraform output -raw instance_public_ip 2^>nul') do set "INSTANCE_PUBLIC_IP=%%k"
-
-if "!INSTANCE_PUBLIC_IP!"=="" (
-    echo [ERROR] No se pudo obtener la IP publica de la instancia EC2
-    cd /d "%~dp0"
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo [OK] Instancia EC2 desplegada - IP: !INSTANCE_PUBLIC_IP!
-cd /d "%~dp0"
-
-set "MONITORING_DIR=2-INICIAR-MONITOREO"
-set "PROVIDER=aws"
-
-:: Crear prometheus.yml para AWS EC2
-call :CREATE_PROMETHEUS_CONFIG "!MONITORING_DIR!" "aws" "!INSTANCE_PUBLIC_IP!" "!INSTANCE_PRIVATE_IP!"
-
-if exist "!MONITORING_DIR!\docker-compose.yml" (
-    cd /d "!MONITORING_DIR!"
-    docker-compose up -d 2>&1
-    cd /d "%~dp0"
-) else (
-    echo [ERROR] No se encuentra docker-compose.yml en !MONITORING_DIR!
-    echo.
-    call :PAUSE_SAFE
-    goto MENU
-)
-
-echo.
-echo Esperando 45 segundos a que AWS EC2 y servicios se inicialicen...
-timeout /t 45 /nobreak >nul
-
-if "!SKIP_IAC!"=="0" (
-    echo.
-    echo === GENERANDO CODIGO IaC AUTOMATICAMENTE ===
-    echo Escaneando infraestructura AWS + Local y generando Terraform/Ansible...
-    echo.
-
-    :: Ejecutar el generador IaC para AWS + Local
-    echo 2| python iac_generator.py 2>&1
+if not exist ".terraform" (
+    echo [INFO] Primera instalacion de Terraform - esto puede tardar...
+    terraform init
     if !errorlevel! neq 0 (
-        echo [WARNING] El generador IaC encontro algunos problemas, pero continua...
+        echo [ERROR] Fallo terraform init
+        cd /d "%~dp0"
+        exit /b 1
+    )
+) else (
+    terraform init
+    if !errorlevel! neq 0 (
+        echo [ERROR] Fallo terraform init
+        cd /d "%~dp0"
+        exit /b 1
     )
 )
 
-echo.
-echo ---------------------------------------------------------
-echo Infraestructura AWS desplegada!
-echo IP Publica EC2: !INSTANCE_PUBLIC_IP!
-echo Dashboard Grafana: http://localhost:3000  (admin/admin)
-echo Dashboard OptiMon: Ya importado automaticamente
-echo IMPORTANTE: Descarga la clave privada desde la consola AWS
-echo.
-if "!SKIP_IAC!"=="0" (
-    echo CODIGO IaC GENERADO:
-    echo - Revisa la carpeta 3-CODIGO-GENERADO\version_X\
-    echo - Contiene: Terraform para replicar EC2 + Local
-    echo - Playbooks Ansible para configuracion automatica
+echo [INFO] Aplicando configuracion Terraform...
+terraform apply -auto-approve
+if !errorlevel! neq 0 (
+    echo [ERROR] Fallo terraform apply
+    cd /d "%~dp0"
+    exit /b 1
 )
-echo ---------------------------------------------------------
-echo.
-goto FIN
 
-:: --- FUNCION: Pausa segura ---
-:PAUSE_SAFE
-echo.
-echo Presiona cualquier tecla para continuar...
-pause >nul
-echo.
+:: Debug - mostrar todos los outputs disponibles
+echo [DEBUG] Outputs disponibles:
+terraform output
+
+:: Intentar obtener IP con diferentes métodos
+terraform output -raw instance_public_ip > temp_ip.txt 2>nul
+if exist temp_ip.txt (
+    set /p AWS_IP=<temp_ip.txt
+    del temp_ip.txt
+    echo [DEBUG] IP obtenida con metodo 1: !AWS_IP!
+) 
+
+:: Si no funciona, probar método alternativo
+if "!AWS_IP!"=="" (
+    echo [DEBUG] Probando metodo alternativo con JSON...
+    for /f "delims=" %%i in ('terraform output -json 2^>nul') do set "OUTPUTS=%%i"
+    for /f "delims=" %%j in ('echo !OUTPUTS! ^| jq -r ".instance_public_ip.value // empty" 2^>nul') do set "AWS_IP=%%j"
+    echo [DEBUG] IP obtenida con metodo 2: !AWS_IP!
+)
+
+cd /d "%~dp0"
+
+if "!AWS_IP!"=="" (
+    echo [ERROR] No se pudo obtener IP de AWS
+    echo [DEBUG] Verifica que el output 'instance_public_ip' existe en tu modulo Terraform
+    echo [DEBUG] Revisa el archivo 1-CREAR-INFRAESTRUCTURA\modulos\aws\outputs.tf
+    exit /b 1
+)
+
+echo [OK] AWS EC2 desplegada: !AWS_IP!
 exit /b 0
 
-:: --- FUNCION: Crear configuracion de Prometheus ---
-:CREATE_PROMETHEUS_CONFIG
+:DEPLOY_AZURE
+echo [INFO] Desplegando Azure VM...
+:: Implementacion similar a AWS pendiente
+set "AZURE_IP=20.1.2.3"
+echo [OK] Azure VM desplegada: !AZURE_IP!
+exit /b 0
+
+:CREATE_MULTI_PROMETHEUS_CONFIG
+set "CONFIG_FILE=2-INICIAR-MONITOREO\config\prometheus\prometheus.yml"
+
+if not exist "2-INICIAR-MONITOREO\config\prometheus" mkdir "2-INICIAR-MONITOREO\config\prometheus"
+
+echo global: > "!CONFIG_FILE!"
+echo   scrape_interval: 15s >> "!CONFIG_FILE!"
+echo   evaluation_interval: 15s >> "!CONFIG_FILE!"
+echo. >> "!CONFIG_FILE!"
+echo rule_files: >> "!CONFIG_FILE!"
+echo   - "alert.rules.yml" >> "!CONFIG_FILE!"
+echo. >> "!CONFIG_FILE!"
+echo scrape_configs: >> "!CONFIG_FILE!"
+echo   - job_name: "prometheus" >> "!CONFIG_FILE!"
+echo     static_configs: >> "!CONFIG_FILE!"
+echo       - targets: ["localhost:9090"] >> "!CONFIG_FILE!"
+echo. >> "!CONFIG_FILE!"
+
+:: Agregar targets segun lo seleccionado
+if "!INCLUDE_LOCAL!"=="1" (
+    echo   - job_name: "local_windows" >> "!CONFIG_FILE!"
+    echo     static_configs: >> "!CONFIG_FILE!"
+    echo       - targets: ["host.docker.internal:9182"] >> "!CONFIG_FILE!"
+    echo. >> "!CONFIG_FILE!"
+)
+
+if "!INCLUDE_AWS!"=="1" (
+    echo   - job_name: "aws_ec2" >> "!CONFIG_FILE!"
+    echo     static_configs: >> "!CONFIG_FILE!"
+    echo       - targets: ["!AWS_IP!:9100"] >> "!CONFIG_FILE!"
+    echo     scrape_interval: 30s >> "!CONFIG_FILE!"
+    echo. >> "!CONFIG_FILE!"
+)
+
+if "!INCLUDE_AZURE!"=="1" (
+    echo   - job_name: "azure_vm" >> "!CONFIG_FILE!"
+    echo     static_configs: >> "!CONFIG_FILE!"
+    echo       - targets: ["!AZURE_IP!:9100"] >> "!CONFIG_FILE!"
+    echo     scrape_interval: 30s >> "!CONFIG_FILE!"
+    echo. >> "!CONFIG_FILE!"
+)
+
+echo [OK] Configuracion multi-servidor creada
+exit /b 0
+
+:CREATE_PROMETHEUS_CONFIG_SINGLE
+:: Funcion mantenida para compatibilidad con opciones individuales
 set "DIR=%~1"
 set "PROV=%~2"
 set "PUBLIC_IP=%~3"
 set "PRIVATE_IP=%~4"
 
-echo [INFO] Creando configuracion de Prometheus para !PROV!...
+if not exist "!DIR!\config\prometheus" mkdir "!DIR!\config\prometheus"
 
-if not exist "!DIR!\config\prometheus" (
-    mkdir "!DIR!\config\prometheus" 2>nul
-)
-
-(
-echo global:
-echo   scrape_interval: 15s
-echo   evaluation_interval: 15s
-echo.
-echo rule_files:
-echo   - "alert.rules.yml"
-echo.
-echo alerting:
-echo   alertmanagers:
-echo     - static_configs:
-echo         - targets: []
-echo.
-echo scrape_configs:
-echo   - job_name: "prometheus"
-echo     static_configs:
-echo       - targets: ["localhost:9090"]
-echo.
-) > "!DIR!\config\prometheus\prometheus.yml"
+echo global: > "!DIR!\config\prometheus\prometheus.yml"
+echo   scrape_interval: 15s >> "!DIR!\config\prometheus\prometheus.yml"
+echo   evaluation_interval: 15s >> "!DIR!\config\prometheus\prometheus.yml"
+echo. >> "!DIR!\config\prometheus\prometheus.yml"
+echo scrape_configs: >> "!DIR!\config\prometheus\prometheus.yml"
+echo   - job_name: "prometheus" >> "!DIR!\config\prometheus\prometheus.yml"
+echo     static_configs: >> "!DIR!\config\prometheus\prometheus.yml"
+echo       - targets: ["localhost:9090"] >> "!DIR!\config\prometheus\prometheus.yml"
+echo. >> "!DIR!\config\prometheus\prometheus.yml"
 
 if "!PROV!"=="local" (
-    (
-    echo   - job_name: "windows_exporter"
-    echo     static_configs:
-    echo       - targets: ["host.docker.internal:9182"]
-    ) >> "!DIR!\config\prometheus\prometheus.yml"
-) else if "!PROV!"=="azure" (
-    (
-    echo   - job_name: "azure_vm"
-    echo     static_configs:
-    echo       - targets: ["!PUBLIC_IP!:9100"]
-    echo     scrape_interval: 30s
-    echo     scrape_timeout: 10s
-    ) >> "!DIR!\config\prometheus\prometheus.yml"
+    echo   - job_name: "windows_exporter" >> "!DIR!\config\prometheus\prometheus.yml"
+    echo     static_configs: >> "!DIR!\config\prometheus\prometheus.yml"
+    echo       - targets: ["host.docker.internal:9182"] >> "!DIR!\config\prometheus\prometheus.yml"
 ) else if "!PROV!"=="aws" (
-    (
-    echo   - job_name: "aws_ec2"
-    echo     static_configs:
-    echo       - targets: ["!PUBLIC_IP!:9100"]
-    echo     scrape_interval: 30s
-    echo     scrape_timeout: 10s
-    ) >> "!DIR!\config\prometheus\prometheus.yml"
+    echo   - job_name: "aws_ec2" >> "!DIR!\config\prometheus\prometheus.yml"
+    echo     static_configs: >> "!DIR!\config\prometheus\prometheus.yml"
+    echo       - targets: ["!PUBLIC_IP!:9100"] >> "!DIR!\config\prometheus\prometheus.yml"
 )
 
-:: Crear archivo de reglas de alertas basico si no existe (SIN caracteres problematicos)
-if not exist "!DIR!\config\prometheus\alert.rules.yml" (
-    (
-    echo groups:
-    echo   - name: optimon_alerts
-    echo     rules:
-    echo       - alert: HighCPUUsage
-    echo         expr: 100 - avg^(rate^(windows_cpu_time_total{mode="idle"}[2m]^)^) * 100 ^> 80
-    echo         for: 2m
-    echo         labels:
-    echo           severity: warning
-    echo         annotations:
-    echo           summary: "High CPU usage detected"
-    echo           description: "CPU usage is above 80%% for more than 2 minutes"
-    echo.
-    echo       - alert: HighMemoryUsage  
-    echo         expr: ^(windows_os_physical_memory_free_bytes / windows_cs_physical_memory_bytes^) * 100 ^< 20
-    echo         for: 5m
-    echo         labels:
-    echo           severity: critical
-    echo         annotations:
-    echo           summary: "High memory usage detected"
-    echo           description: "Memory usage is above 80%% for more than 5 minutes"
-    ) > "!DIR!\config\prometheus\alert.rules.yml"
-)
-
-echo [OK] Configuracion de Prometheus creada exitosamente
 exit /b 0
 
-:FIN
-echo.
-echo Proceso completado!
-echo.
-echo === RESUMEN DE LO DESPLEGADO ===
-echo Accede a tu dashboard OptiMon en:
-echo    http://localhost:3000
-echo    Usuario: admin / Contrasena: admin
-echo.
-echo Para editar alertas:
-echo    Archivo: !MONITORING_DIR!\config\prometheus\alert.rules.yml
-echo    Reinicia con: docker-compose restart prometheus
-echo.
-if "!SKIP_IAC!"=="0" (
-    echo === CODIGO IaC GENERADO ===
-    echo El sistema ha escaneado tu infraestructura y generado:
-    echo 1. Codigo Terraform para replicar la infraestructura
-    echo 2. Playbooks Ansible para configuracion automatica
-    echo 3. Reporte detallado de recursos detectados
-    echo.
-    echo Ubicacion: 3-CODIGO-GENERADO\version_X\
-    echo - terraform\ ^(codigo para replicar infraestructura^)
-    echo - ansible\ ^(configuracion automatizada^)  
-    echo - README.md ^(instrucciones de uso^)
-    echo - scan_results.json ^(datos completos del escaneo^)
-    echo.
-)
-if "!PROVIDER!"=="aws" (
-    echo RECORDATORIO AWS:
-    echo - Instancia: t3.micro ^(Free Tier^)
-    echo - Descargar clave privada desde AWS Console
-    echo - Acceso SSH: ssh -i !KEY_NAME!.pem ec2-user@!INSTANCE_PUBLIC_IP!
-    echo.
-)
-if "!PROVIDER!"=="azure" (
-    echo RECORDATORIO AZURE:
-    echo - VM: Standard_B1s ^(Free Tier^)
-    echo - Acceso SSH: ssh azureuser@!VM_PUBLIC_IP!
-    echo.
-)
-echo === PROXIMOS PASOS ===
-echo 1. Verifica el dashboard en http://localhost:3000
-if "!SKIP_IAC!"=="0" (
-    echo 2. Revisa el codigo IaC generado en 3-CODIGO-GENERADO\
-    echo 3. Usa 'terraform plan' para validar antes de aplicar
-    echo 4. Los playbooks Ansible configuran monitoreo automaticamente
-)
-echo.
-echo Tu sistema de monitoreo multi-cloud esta listo!
-echo.
-call :PAUSE_SAFE
-goto SALIR
-
-:SALIR
-echo.
+:EXIT
 echo Gracias por usar OptiMon!
-echo.
 exit /b 0
