@@ -1,0 +1,171 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "OptiMon - AWS Linux Server",
+    "tags": ["optimon", "aws", "linux"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "CPU Usage - AWS Linux",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "100 - (avg(rate(node_cpu_seconds_total{instance=\"98.89.40.218:9100\",mode=\"idle\"}[2m])) * 100)",
+            "legendFormat": "CPU Usage %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Memory Usage - AWS Linux",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "((node_memory_MemTotal_bytes{instance=\"98.89.40.218:9100\"} - node_memory_MemAvailable_bytes{instance=\"98.89.40.218:9100\"}) / node_memory_MemTotal_bytes{instance=\"98.89.40.218:9100\"}) * 100",
+            "legendFormat": "Memory Usage %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 75},
+                {"color": "red", "value": 90}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Network Traffic - AWS Linux",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(node_network_receive_bytes_total{instance=\"98.89.40.218:9100\",device!~\"lo|docker.*|br.*\"}[5m]) * 8",
+            "legendFormat": "Download {{device}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(node_network_transmit_bytes_total{instance=\"98.89.40.218:9100\",device!~\"lo|docker.*|br.*\"}[5m]) * 8",
+            "legendFormat": "Upload {{device}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bps",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 10000000},
+                {"color": "red", "value": 50000000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Disk Usage - AWS Linux",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "((node_filesystem_size_bytes{instance=\"98.89.40.218:9100\",fstype!=\"tmpfs\",mountpoint=\"/\"} - node_filesystem_free_bytes{instance=\"98.89.40.218:9100\",fstype!=\"tmpfs\",mountpoint=\"/\"}) / node_filesystem_size_bytes{instance=\"98.89.40.218:9100\",fstype!=\"tmpfs\",mountpoint=\"/\"}) * 100",
+            "legendFormat": "Root Disk Usage %",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 80},
+                {"color": "red", "value": 95}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "System Load Average - AWS Linux",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "node_load1{instance=\"98.89.40.218:9100\"}",
+            "legendFormat": "1 min",
+            "refId": "A"
+          },
+          {
+            "expr": "node_load5{instance=\"98.89.40.218:9100\"}",
+            "legendFormat": "5 min",
+            "refId": "B"
+          },
+          {
+            "expr": "node_load15{instance=\"98.89.40.218:9100\"}",
+            "legendFormat": "15 min",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 2}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Server Info - AWS Linux",
+        "type": "text",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "options": {
+          "content": "### AWS Linux Server\n**Instance Type:** t3.micro  \n**IP:** 98.89.40.218  \n**Region:** us-east-1  \n**Monitoring:** Node Exporter  \n**OS:** Amazon Linux 2023\n\n**Status:** Active ✅",
+          "mode": "markdown"
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}
