@@ -1,0 +1,78 @@
+{
+  "local": {
+    "type": "local",
+    "containers": [
+      {
+        "name": "optimon_alertmanager",
+        "image": "prom/alertmanager:latest",
+        "ports": "0.0.0.0:9093->9093/tcp",
+        "status": "Up 31 seconds"
+      },
+      {
+        "name": "optimon_grafana",
+        "image": "grafana/grafana:latest",
+        "ports": "0.0.0.0:3000->3000/tcp",
+        "status": "Up 31 seconds"
+      },
+      {
+        "name": "optimon_prometheus",
+        "image": "prom/prometheus:latest",
+        "ports": "0.0.0.0:9090->9090/tcp",
+        "status": "Up 31 seconds"
+      }
+    ],
+    "system_specs": {
+      "cpu_cores": 12,
+      "memory_gb": 15.71,
+      "disk_gb": 457.61
+    },
+    "services": [
+      "prometheus",
+      "grafana",
+      "node_exporter"
+    ]
+  },
+  "aws": {
+    "type": "aws",
+    "instances": [
+      {
+        "instance_id": "i-0b3f145d770917581",
+        "instance_type": "t3.micro",
+        "state": "running",
+        "vpc_id": "vpc-068b09eca58bbe593",
+        "subnet_id": "subnet-0985d820fee671d79",
+        "security_groups": [
+          "sg-0284c3ef74fd7aab6"
+        ]
+      },
+      {
+        "instance_id": "i-0361d2acfaeb02039",
+        "instance_type": "t3.micro",
+        "state": "running",
+        "vpc_id": "vpc-0f0ceef828cd4ae85",
+        "subnet_id": "subnet-00637f2bb98a8279a",
+        "security_groups": [
+          "sg-09dc36c8dab790dc5"
+        ]
+      }
+    ],
+    "vpcs": [
+      {
+        "vpc_id": "vpc-0d1cfcff1cd30c124",
+        "cidr_block": "10.0.0.0/16",
+        "is_default": false
+      },
+      {
+        "vpc_id": "vpc-068b09eca58bbe593",
+        "cidr_block": "172.31.0.0/16",
+        "is_default": true
+      },
+      {
+        "vpc_id": "vpc-0f0ceef828cd4ae85",
+        "cidr_block": "10.0.0.0/16",
+        "is_default": false
+      }
+    ],
+    "security_groups": []
+  }
+}

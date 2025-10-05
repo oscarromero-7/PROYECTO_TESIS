@@ -15,7 +15,7 @@ route:
 receivers:
   - name: 'email-notifications'
     email_configs:
-      - to: 'maximat4@fpuna.edu.py, wacry77@fpuna.edu.py, Proyecto20251985@hotmail.com' 
+      - to: 'Proyecto20251985@hotmail.com' 
         headers:
           Subject: '🚨 [OptiMon Alert] {{ .GroupLabels.alertname }}'
         html: |

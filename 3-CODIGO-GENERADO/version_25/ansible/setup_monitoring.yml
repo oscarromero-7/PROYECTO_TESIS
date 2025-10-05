@@ -1,0 +1,37 @@
+---
+- name: Configurar Node Exporter para monitoreo OptiMon
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Descargar Node Exporter
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/latest/download/node_exporter-1.6.1.linux-amd64.tar.gz"
+        dest: "/tmp/node_exporter.tar.gz"
+    
+    - name: Extraer Node Exporter
+      unarchive:
+        src: "/tmp/node_exporter.tar.gz"
+        dest: "/tmp"
+        remote_src: yes
+    
+    - name: Copiar binario
+      copy:
+        src: "/tmp/node_exporter-1.6.1.linux-amd64/node_exporter"
+        dest: "/usr/local/bin/node_exporter"
+        mode: '0755'
+        remote_src: yes
+    
+    - name: Crear servicio systemd
+      systemd:
+        name: node_exporter
+        state: started
+        enabled: yes
+        daemon_reload: yes
+        
+    - name: Abrir puerto 9100 (firewall)
+      ufw:
+        rule: allow
+        port: 9100
+        proto: tcp
+      ignore_errors: yes
