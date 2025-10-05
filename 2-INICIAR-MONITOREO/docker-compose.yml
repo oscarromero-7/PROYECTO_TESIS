@@ -9,6 +9,15 @@ services:
       - "9090:9090"
     restart: unless-stopped
 
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: optimon_alertmanager
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:latest
     container_name: optimon_grafana
@@ -22,7 +31,6 @@ services:
       - "3000:3000"
     restart: unless-stopped
 
-  # Solo incluir si vas a monitorear el host local Windows
   windows-exporter:
     image: ghcr.io/prometheus-community/windows-exporter:latest
     container_name: optimon_windows_exporter

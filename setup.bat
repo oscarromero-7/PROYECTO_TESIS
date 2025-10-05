@@ -100,6 +100,11 @@ if /i "!AZURE_CHOICE!"=="S" (
     set /p VM_PASSWORD="Password para VM Azure: "
 )
 
+cd 1-CREAR-INFRAESTRUCTURA
+terraform init
+terraform apply -auto-approve
+cd ..
+
 :: Verificar que al menos uno este seleccionado
 if "!INCLUDE_LOCAL!"=="0" if "!INCLUDE_AWS!"=="0" if "!INCLUDE_AZURE!"=="0" (
     echo [ERROR] Debes seleccionar al menos un tipo de servidor
@@ -206,7 +211,19 @@ pause
 goto MENU
 
 :AZURE_ONLY
-echo [INFO] Funcionalidad Azure individual disponible
+echo --- Credenciales Azure ---
+set /p AZURE_CLIENT_ID="Azure Client ID: "
+set /p AZURE_CLIENT_SECRET="Azure Client Secret: "
+set /p AZURE_TENANT_ID="Azure Tenant ID: "
+set /p AZURE_SUBSCRIPTION_ID="Azure Subscription ID: "
+set /p VM_PASSWORD="Password para VM Azure: "
+
+call :DEPLOY_AZURE
+call :CREATE_PROMETHEUS_CONFIG_SINGLE "2-INICIAR-MONITOREO" "azure" "!AZURE_IP!" ""
+cd /d "2-INICIAR-MONITOREO"
+docker-compose up -d
+cd /d "%~dp0"
+echo [OK] Monitoreo Azure iniciado - VM: !AZURE_IP!
 pause
 goto MENU
 
@@ -405,9 +422,102 @@ echo [OK] AWS EC2 desplegada: !AWS_IP!
 exit /b 0
 
 :DEPLOY_AZURE
-echo [INFO] Desplegando Azure VM...
-:: Implementacion similar a AWS pendiente
-set "AZURE_IP=20.1.2.3"
+if not exist "1-CREAR-INFRAESTRUCTURA" (
+    echo [ERROR] Directorio 1-CREAR-INFRAESTRUCTURA no existe
+    exit /b 1
+)
+
+cd /d "1-CREAR-INFRAESTRUCTURA"
+
+:: Crear terraform.tfvars con credenciales Azure
+echo client_id = "!AZURE_CLIENT_ID!" > terraform.tfvars
+echo client_secret = "!AZURE_CLIENT_SECRET!" >> terraform.tfvars
+echo tenant_id = "!AZURE_TENANT_ID!" >> terraform.tfvars
+echo subscription_id = "!AZURE_SUBSCRIPTION_ID!" >> terraform.tfvars
+echo vm_password = "!VM_PASSWORD!" >> terraform.tfvars
+echo resource_group_name = "optimon-rg" >> terraform.tfvars
+echo location = "East US" >> terraform.tfvars
+
+if not exist ".terraform" (
+    echo [INFO] Inicializando Terraform para Azure (primera vez - puede tardar)...
+    terraform init
+    if !errorlevel! neq 0 (
+        echo [ERROR] Fallo terraform init
+        cd /d "%~dp0"
+        exit /b 1
+    )
+) else (
+    terraform init
+    if !errorlevel! neq 0 (
+        echo [ERROR] Fallo terraform init
+        cd /d "%~dp0"
+        exit /b 1
+    )
+)
+
+echo [INFO] Desplegando VM en Azure (esto puede tardar 5-10 minutos)...
+echo [INFO] La VM instalara automaticamente Node Exporter via provisioner
+terraform apply -auto-approve
+if !errorlevel! neq 0 (
+    echo [ERROR] Fallo terraform apply para Azure
+    cd /d "%~dp0"
+    exit /b 1
+)
+
+:: Debug - mostrar outputs disponibles
+echo [DEBUG] Outputs de Azure disponibles:
+terraform output
+
+:: Obtener IP pública de la VM Azure
+terraform output -raw vm_public_ip > temp_azure_ip.txt 2>nul
+if exist temp_azure_ip.txt (
+    set /p AZURE_IP=<temp_azure_ip.txt
+    del temp_azure_ip.txt
+    echo [DEBUG] IP de Azure obtenida: !AZURE_IP!
+)
+
+:: Si no funciona, probar método alternativo con JSON
+if "!AZURE_IP!"=="" (
+    echo [DEBUG] Probando metodo alternativo con JSON...
+    for /f "delims=" %%i in ('terraform output -json 2^>nul') do set "OUTPUTS=%%i"
+    for /f "delims=" %%j in ('echo !OUTPUTS! ^| jq -r ".vm_public_ip.value // empty" 2^>nul') do set "AZURE_IP=%%j"
+    echo [DEBUG] IP obtenida con metodo 2: !AZURE_IP!
+)
+
+cd /d "%~dp0"
+
+if "!AZURE_IP!"=="" (
+    echo [ERROR] No se pudo obtener IP de Azure VM
+    echo [DEBUG] Verifica que el output 'vm_public_ip' existe en modulos/vm/outputs.tf
+    exit /b 1
+)
+
+:: Esperar a que la VM termine el provisioning y Node Exporter esté listo
+echo [INFO] Esperando 90 segundos a que Azure VM complete el provisioning...
+echo [INFO] (Node Exporter se esta instalando via remote-exec)
+timeout /t 90 /nobreak >nul
+
+:: Verificar conectividad con Node Exporter
+echo [INFO] Verificando conectividad con Node Exporter en !AZURE_IP!:9100...
+set "RETRY_COUNT=0"
+:AZURE_RETRY
+curl -s --max-time 5 http://!AZURE_IP!:9100/metrics >nul 2>&1
+if !errorlevel! neq 0 (
+    set /a RETRY_COUNT+=1
+    if !RETRY_COUNT! leq 3 (
+        echo [WARNING] Intento !RETRY_COUNT!/3 - Node Exporter aun no responde, reintentando en 30s...
+        timeout /t 30 /nobreak >nul
+        goto AZURE_RETRY
+    ) else (
+        echo [WARNING] Node Exporter no responde despues de 3 intentos
+        echo [INFO] Es posible que el provisioning tarde mas de lo esperado
+        echo [TIP] Verifica manualmente en 5 minutos: http://!AZURE_IP!:9100/metrics
+        echo [TIP] O conectate via SSH y verifica: ssh azureuser@!AZURE_IP!
+    )
+) else (
+    echo [OK] Node Exporter respondiendo correctamente en !AZURE_IP!:9100
+)
+
 echo [OK] Azure VM desplegada: !AZURE_IP!
 exit /b 0
 
@@ -481,6 +591,10 @@ if "!PROV!"=="local" (
     echo       - targets: ["host.docker.internal:9182"] >> "!DIR!\config\prometheus\prometheus.yml"
 ) else if "!PROV!"=="aws" (
     echo   - job_name: "aws_ec2" >> "!DIR!\config\prometheus\prometheus.yml"
+    echo     static_configs: >> "!DIR!\config\prometheus\prometheus.yml"
+    echo       - targets: ["!PUBLIC_IP!:9100"] >> "!DIR!\config\prometheus\prometheus.yml"
+) else if "!PROV!"=="azure" (
+    echo   - job_name: "azure_vm" >> "!DIR!\config\prometheus\prometheus.yml"
     echo     static_configs: >> "!DIR!\config\prometheus\prometheus.yml"
     echo       - targets: ["!PUBLIC_IP!:9100"] >> "!DIR!\config\prometheus\prometheus.yml"
 )
