@@ -1,0 +1,29 @@
+groups:
+- name: optimon-alerts
+  rules:
+  - alert: InstanceDown
+    annotations:
+      description: La instancia {{ $labels.instance }} esta caida
+      summary: Instancia {{ $labels.instance }} no disponible
+    expr: up == 0
+    for: 2m
+    labels:
+      severity: critical
+  - alert: HighCPU
+    annotations:
+      description: CPU al {{ $value }}%
+      summary: Alto uso de CPU en {{ $labels.instance }}
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m]))
+      * 100) > 80
+    for: 2m
+    labels:
+      severity: warning
+  - alert: HighMemory
+    annotations:
+      description: Memoria al {{ $value }}%
+      summary: Alto uso de memoria en {{ $labels.instance }}
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+      > 90
+    for: 2m
+    labels:
+      severity: warning

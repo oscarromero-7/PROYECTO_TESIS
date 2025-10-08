@@ -1,0 +1,28 @@
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      - alertmanager:9093
+global:
+  evaluation_interval: 15s
+  scrape_interval: 15s
+rule_files:
+- alert.rules.yml
+scrape_configs:
+- job_name: prometheus
+  static_configs:
+  - targets:
+    - localhost:9090
+- job_name: node-exporter
+  scrape_interval: 15s
+  static_configs:
+  - labels:
+      instance: vmPruebas01
+      ip: 172.191.59.230
+      job: node-exporter
+      location: eastus
+      provider: azure
+      resource_group: RECURSOS_PRUEBAS
+      vm_size: Standard_D2s_v3
+    targets:
+    - 172.191.59.230:9100

@@ -107,14 +107,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      - "3000:3000"
-    restart: unless-stopped
-
-  windows-exporter:
-    image: ghcr.io/prometheus-community/windows-exporter:latest
-    container_name: optimon_windows_exporter
-    ports:
-      - "9182:9182"
-    restart: unless-stopped
-    profiles:
-      - local-windows
