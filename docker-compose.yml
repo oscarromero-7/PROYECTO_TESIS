@@ -84,7 +84,7 @@ services:
     depends_on:
       - prometheus
 
-  # Node Exporter local (opcional para host Docker)
+  # Opcional: Node Exporter local para monitorear el host de Docker
   node-exporter:
     image: prom/node-exporter:latest
     container_name: optimon_node_exporter
@@ -107,5 +107,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    profiles:
-      - local

@@ -1,0 +1,23 @@
+{
+  "recipients": [
+    {
+      "email": "oagr2010@hotmail.com",
+      "name": "oagr2010",
+      "active": true,
+      "added_date": "2025-10-09T12:00:00"
+    },
+    {
+      "email": "test@ejemplo.com",
+      "name": "Usuario Test",
+      "active": true,
+      "added_date": "2025-10-09T17:17:01.268025"
+    }
+  ],
+  "default_recipient": "test@ejemplo.com",
+  "notifications_enabled": true,
+  "settings": {
+    "send_resolved": true,
+    "group_wait": "10s",
+    "repeat_interval": "1h"
+  }
+}
