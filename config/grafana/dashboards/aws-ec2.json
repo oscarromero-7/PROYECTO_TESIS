@@ -16,39 +16,42 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": null,
-  "links": [
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": false,
-      "keepTime": false,
-      "tags": [],
-      "targetBlank": true,
-      "title": "AWS EC2 Dashboard",
-      "tooltip": "Ver detalles específicos de AWS EC2",
-      "type": "link",
-      "url": "/d/optimon-aws-ec2/optimon-aws-ec2-instances"
-    },
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": false,
-      "keepTime": false,
-      "tags": [],
-      "targetBlank": true,
-      "title": "Azure VMs Dashboard",
-      "tooltip": "Ver detalles específicos de Azure VMs",
-      "type": "link",
-      "url": "/d/optimon-azure-vms/optimon-azure-virtual-machines"
-    }
-  ],
+  "links": [],
   "panels": [
     {
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -57,46 +60,44 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
               }
             ]
           },
-          "unit": "short"
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
+        "h": 8,
+        "w": 12,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
         },
-        "text": {},
-        "textMode": "auto"
+        "tooltip": {
+          "mode": "single"
+        }
       },
-      "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "count(up{provider=\"aws\"} == 1)",
+          "expr": "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\", provider=\"aws\"}[5m])) * 100)",
           "interval": "",
-          "legendFormat": "",
+          "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ],
-      "title": "AWS EC2 - Active Instances",
-      "type": "stat"
+      "title": "AWS EC2 - CPU Usage",
+      "type": "timeseries"
     },
     {
       "datasource": "Prometheus",
@@ -112,24 +113,29 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
               }
             ]
           },
-          "unit": "short"
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
+        "h": 8,
+        "w": 12,
+        "x": 12,
         "y": 0
       },
       "id": 2,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
           "values": false,
@@ -138,130 +144,21 @@
           ],
           "fields": ""
         },
-        "text": {},
-        "textMode": "auto"
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
       },
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "count(up{provider=\"azure\"} == 1)",
+          "expr": "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\", provider=\"aws\"}[5m])) * 100)",
           "interval": "",
-          "legendFormat": "",
+          "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ],
-      "title": "Azure VMs - Active Instances",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 0
-      },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "avg(100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\", provider=\"aws\"}[5m])) * 100))",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "title": "AWS - Avg CPU Usage",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "avg(100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\", instance=~\".*azure.*|.*cloudapp.*\"}[5m])) * 100))",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "title": "Azure - Avg CPU Usage",
-      "type": "stat"
+      "title": "AWS EC2 - CPU Utilization",
+      "type": "gauge"
     },
     {
       "datasource": "Prometheus",
@@ -314,46 +211,15 @@
           },
           "unit": "percent"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*AWS.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "orange"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*Azure.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 8
       },
-      "id": 5,
+      "id": 3,
       "options": {
         "legend": {
           "calcs": [],
@@ -366,19 +232,13 @@
       },
       "targets": [
         {
-          "expr": "avg(100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\", instance=~\".*amazonaws.*|.*ec2.*|.*aws.*\"}[5m])) * 100))",
+          "expr": "100 - ((node_memory_MemAvailable_bytes{provider=\"aws\"} * 100) / node_memory_MemTotal_bytes{provider=\"aws\"})",
           "interval": "",
-          "legendFormat": "AWS Average CPU",
+          "legendFormat": "{{instance}}",
           "refId": "A"
-        },
-        {
-          "expr": "avg(100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\", instance=~\".*azure.*|.*cloudapp.*\"}[5m])) * 100))",
-          "interval": "",
-          "legendFormat": "Azure Average CPU",
-          "refId": "B"
         }
       ],
-      "title": "CPU Usage Comparison - AWS vs Azure",
+      "title": "AWS EC2 - Memory Usage",
       "type": "timeseries"
     },
     {
@@ -432,46 +292,15 @@
           },
           "unit": "percent"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*AWS.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "orange"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*Azure.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 8
       },
-      "id": 6,
+      "id": 4,
       "options": {
         "legend": {
           "calcs": [],
@@ -484,19 +313,100 @@
       },
       "targets": [
         {
-          "expr": "avg(100 - ((node_memory_MemAvailable_bytes{instance=~\".*amazonaws.*|.*ec2.*|.*aws.*\"} * 100) / node_memory_MemTotal_bytes{instance=~\".*amazonaws.*|.*ec2.*|.*aws.*\"}))",
+          "expr": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/\", provider=\"aws\"} * 100) / node_filesystem_size_bytes{mountpoint=\"/\", provider=\"aws\"})",
           "interval": "",
-          "legendFormat": "AWS Average Memory",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "AWS EC2 - Disk Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "irate(node_network_receive_bytes_total{device!=\"lo\", provider=\"aws\"}[5m]) * 8",
+          "interval": "",
+          "legendFormat": "{{instance}} - {{device}} RX",
           "refId": "A"
         },
         {
-          "expr": "avg(100 - ((node_memory_MemAvailable_bytes{instance=~\".*azure.*|.*cloudapp.*\"} * 100) / node_memory_MemTotal_bytes{instance=~\".*azure.*|.*cloudapp.*\"}))",
+          "expr": "irate(node_network_transmit_bytes_total{device!=\"lo\", provider=\"aws\"}[5m]) * 8",
           "interval": "",
-          "legendFormat": "Azure Average Memory",
+          "legendFormat": "{{instance}} - {{device}} TX",
           "refId": "B"
         }
       ],
-      "title": "Memory Usage Comparison - AWS vs Azure",
+      "title": "AWS EC2 - Network Traffic",
       "type": "timeseries"
     },
     {
@@ -566,22 +476,22 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 24
       },
-      "id": 7,
+      "id": 6,
       "options": {
         "showHeader": true,
         "sortBy": [
           {
             "desc": false,
-            "displayName": "instance"
+            "displayName": "Instance"
           }
         ]
       },
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "up",
+          "expr": "up{provider=\"aws\"}",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -589,7 +499,7 @@
           "refId": "A"
         }
       ],
-      "title": "All Infrastructure - Status Overview",
+      "title": "AWS EC2 - Instance Status",
       "transformations": [
         {
           "id": "organize",
@@ -614,8 +524,8 @@
   "style": "dark",
   "tags": [
     "optimon",
-    "overview",
-    "multi-cloud"
+    "aws",
+    "ec2"
   ],
   "templating": {
     "list": []
@@ -626,7 +536,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "OptiMon - Infrastructure Overview",
-  "uid": "optimon-infrastructure",
-  "version": 2
+  "title": "OptiMon - AWS EC2 Instances",
+  "uid": "optimon-aws-ec2",
+  "version": 1
 }

@@ -121,7 +121,9 @@ class IntelligentAutoSetup:
         self.discovered_instances = []
         self.successful_installs = 0
         self.failed_installs = 0
+        self.failed_instances = []  # Nueva lista para diagnóstico detallado
         self.ssh_key_manager = SSHKeyManager()
+        self.status_exporter_process = None
         
     def load_config(self):
         """Carga configuracion simplificada"""
@@ -192,6 +194,9 @@ class IntelligentAutoSetup:
         platform = instance.get('Platform', 'linux')
         if platform == 'windows':
             return None
+        
+        # **NUEVO: Abrir puerto 9100 automáticamente**
+        self._ensure_aws_port_9100_open(ec2_client, instance)
         
         # Detectar usuario SSH automaticamente
         ssh_user = self._detect_aws_ssh_user(ec2_client, instance)
@@ -490,6 +495,9 @@ class IntelligentAutoSetup:
         
         print(f"[OptiMon] Instalando Node Exporter automaticamente en {len(self.discovered_instances)} instancias...")
         
+        # Diagnostico inicial
+        self.failed_instances = []
+        
         # Instalacion paralela con deteccion automatica de credenciales
         max_workers = min(10, len(self.discovered_instances))
         
@@ -509,10 +517,16 @@ class IntelligentAutoSetup:
                         print(f"  [OK] {instance['name']} ({instance['ip']})")
                     else:
                         self.failed_installs += 1
+                        self._diagnose_failed_instance(instance)
                         print(f"  [ERROR] {instance['name']} ({instance['ip']})")
                 except Exception as e:
                     self.failed_installs += 1
+                    self._diagnose_failed_instance(instance, str(e))
                     print(f"  [ERROR] {instance['name']} ({instance['ip']}): {e}")
+        
+        # Reporte detallado de fallos
+        if self.failed_instances:
+            self._print_failure_report()
     
     def _auto_install_single(self, instance):
         """Instala Node Exporter en una instancia con deteccion automatica"""
@@ -859,7 +873,29 @@ echo "[OK] Node Exporter instalado y activo"
             if dashboard_dir.exists():
                 dashboard_files = list(dashboard_dir.glob("*.json"))
                 
+                # Dashboards prioritarios para mostrar en orden
+                priority_dashboards = [
+                    "diagnostic-dashboard.json",
+                    "aws-ec2-improved.json", 
+                    "aws-ec2.json",
+                    "azure-vms.json",
+                    "infrastructure-overview.json"
+                ]
+                
+                # Ordenar dashboards por prioridad
+                ordered_dashboards = []
+                for priority in priority_dashboards:
+                    for dashboard_file in dashboard_files:
+                        if dashboard_file.name == priority:
+                            ordered_dashboards.append(dashboard_file)
+                            break
+                
+                # Agregar dashboards restantes
                 for dashboard_file in dashboard_files:
+                    if dashboard_file not in ordered_dashboards:
+                        ordered_dashboards.append(dashboard_file)
+                
+                for dashboard_file in ordered_dashboards:
                     try:
                         with open(dashboard_file, 'r', encoding='utf-8') as f:
                             dashboard_json = json.load(f)
@@ -877,12 +913,15 @@ echo "[OK] Node Exporter instalado y activo"
                         )
                         
                         if response.status_code in [200, 201]:
-                            print(f"   ✅ Dashboard importado: {dashboard_file.stem}")
+                            dashboard_name = dashboard_file.stem.replace('-', ' ').title()
+                            print(f"   ✅ Dashboard importado: {dashboard_name}")
                         
                     except Exception as e:
                         print(f"   [WARN] Error importando {dashboard_file.stem}: {e}")
                 
                 print(f"[OK] Dashboards configurados en {grafana_url}")
+                print("   📊 Dashboard principal: Diagnóstico de Infraestructura")
+                print("   🔗 Navegación entre dashboards habilitada")
             
         except ImportError:
             print("   [WARN] Módulo requests no disponible, dashboards no configurados")
@@ -924,12 +963,70 @@ echo "[OK] Node Exporter instalado y activo"
             print("  - Claves SSH disponibles")
             print("  - Permisos de las instancias")
     
+    def _ensure_aws_port_9100_open(self, ec2_client, instance):
+        """Asegura que el puerto 9100 esté abierto en los Security Groups de AWS"""
+        try:
+            instance_id = instance['InstanceId']
+            instance_name = next((tag['Value'] for tag in instance.get('Tags', []) if tag['Key'] == 'Name'), instance_id)
+            
+            # Obtener Security Groups de la instancia
+            security_groups = instance.get('SecurityGroups', [])
+            
+            for sg in security_groups:
+                sg_id = sg['GroupId']
+                
+                # Verificar si el puerto 9100 ya está abierto
+                sg_details = ec2_client.describe_security_groups(GroupIds=[sg_id])
+                
+                for sg_detail in sg_details['SecurityGroups']:
+                    inbound_rules = sg_detail.get('IpPermissions', [])
+                    port_9100_open = False
+                    
+                    for rule in inbound_rules:
+                        from_port = rule.get('FromPort')
+                        to_port = rule.get('ToPort')
+                        
+                        if from_port and to_port:
+                            if from_port <= 9100 <= to_port:
+                                port_9100_open = True
+                                break
+                        elif rule.get('IpProtocol') == '-1':  # Todos los puertos
+                            port_9100_open = True
+                            break
+                    
+                    if not port_9100_open:
+                        print(f"[AWS] Abriendo puerto 9100 para {instance_name} en SG {sg_id}")
+                        try:
+                            ec2_client.authorize_security_group_ingress(
+                                GroupId=sg_id,
+                                IpPermissions=[
+                                    {
+                                        'IpProtocol': 'tcp',
+                                        'FromPort': 9100,
+                                        'ToPort': 9100,
+                                        'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'Node Exporter - OptiMon Auto'}]
+                                    }
+                                ]
+                            )
+                            print(f"[AWS] ✅ Puerto 9100 abierto en SG {sg_id}")
+                        except Exception as sg_error:
+                            if 'already exists' in str(sg_error).lower():
+                                print(f"[AWS] ℹ️ Puerto 9100 ya existe en SG {sg_id}")
+                            else:
+                                print(f"[AWS] ⚠️ Error al abrir puerto 9100: {sg_error}")
+                    else:
+                        print(f"[AWS] ✅ Puerto 9100 ya está abierto para {instance_name}")
+                        
+        except Exception as e:
+            print(f"[AWS] ⚠️ Error verificando Security Groups: {e}")
+    
     def run(self):
         """Ejecuta el proceso completo automatico"""
         print("[INFO] OptiMon - Configuracion 100% Automatica")
         print("=" * 50)
         
         self.load_config()
+        self.start_status_exporter()  # Iniciar exportador antes del descubrimiento
         self.auto_discover_aws()
         self.auto_discover_azure()
         self.scan_physical_network()
@@ -951,6 +1048,169 @@ echo "[OK] Node Exporter instalado y activo"
             print("Verifica las credenciales en config/credentials.simple.yml")
         
         self.show_summary()
+    
+    def _diagnose_failed_instance(self, instance, error_msg=None):
+        """Diagnostica por qué falló una instancia específica"""
+        diagnosis = {
+            'instance': instance,
+            'error': error_msg,
+            'issues': [],
+            'solutions': []
+        }
+        
+        # Verificar conectividad básica
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            result = sock.connect_ex((instance['ip'], 22))
+            sock.close()
+            
+            if result != 0:
+                diagnosis['issues'].append("🔴 Puerto SSH (22) inaccesible")
+                diagnosis['solutions'].append("- Verificar Security Groups/NSG para puerto 22")
+                diagnosis['solutions'].append("- Verificar que la instancia esté ejecutándose")
+        except Exception:
+            diagnosis['issues'].append("🔴 No hay conectividad de red")
+            diagnosis['solutions'].append("- Verificar configuración de red")
+        
+        # Verificar claves SSH disponibles
+        ssh_keys = self._find_available_ssh_keys()
+        if not ssh_keys:
+            diagnosis['issues'].append("🔴 No se encontraron claves SSH")
+            diagnosis['solutions'].append("- Colocar archivo .pem en directorio del proyecto")
+            diagnosis['solutions'].append("- Verificar permisos de claves SSH (chmod 400)")
+        else:
+            diagnosis['issues'].append(f"🟡 {len(ssh_keys)} claves SSH encontradas pero ninguna funciona")
+            diagnosis['solutions'].append("- Verificar que la clave corresponda a esta instancia")
+            diagnosis['solutions'].append("- La instancia puede usar una clave diferente")
+        
+        # Verificar proveedor específico
+        if instance['provider'] == 'aws':
+            diagnosis['issues'].append("🟡 Instancia AWS con posible problema de grupo de seguridad")
+            diagnosis['solutions'].append("- Verificar que la instancia esté en el Security Group correcto")
+            diagnosis['solutions'].append("- Comprobar que se creó con la clave SSH correcta")
+        elif instance['provider'] == 'azure':
+            diagnosis['issues'].append("🟡 Instancia Azure con posible problema de NSG")
+            diagnosis['solutions'].append("- Verificar Network Security Group")
+            diagnosis['solutions'].append("- Comprobar configuración de SSH en la VM")
+        
+        self.failed_instances.append(diagnosis)
+    
+    def _find_available_ssh_keys(self):
+        """Encuentra todas las claves SSH disponibles en el sistema"""
+        ssh_keys = []
+        
+        # Buscar en directorio .ssh
+        ssh_dir = Path.home() / ".ssh"
+        if ssh_dir.exists():
+            for key_file in ssh_dir.iterdir():
+                if (key_file.is_file() and 
+                    not key_file.name.endswith(('.pub', '.known_hosts', '.config'))):
+                    ssh_keys.append(str(key_file))
+        
+        # Buscar en directorio del proyecto
+        project_keys = [
+            "./1-CREAR-INFRAESTRUCTURA/Optimon2.pem",
+            "./Optimon2.pem"
+        ]
+        
+        for key_path in project_keys:
+            if os.path.exists(key_path):
+                ssh_keys.append(key_path)
+        
+        return ssh_keys
+    
+    def _print_failure_report(self):
+        """Imprime reporte detallado de instancias que fallaron"""
+        print("\n" + "="*60)
+        print("🔍 DIAGNÓSTICO DETALLADO DE INSTANCIAS FALLIDAS")
+        print("="*60)
+        
+        for i, diagnosis in enumerate(self.failed_instances, 1):
+            instance = diagnosis['instance']
+            print(f"\n{i}. 🖥️  INSTANCIA: {instance['name']} ({instance['ip']})")
+            print(f"   📡 Proveedor: {instance['provider'].upper()}")
+            print(f"   👤 Usuario SSH: {instance['ssh_user']}")
+            
+            if diagnosis['error']:
+                print(f"   ❌ Error: {diagnosis['error']}")
+            
+            print("\n   🔍 PROBLEMAS DETECTADOS:")
+            for issue in diagnosis['issues']:
+                print(f"      {issue}")
+            
+            print("\n   💡 SOLUCIONES SUGERIDAS:")
+            for solution in diagnosis['solutions']:
+                print(f"      {solution}")
+            
+            # Sugerencias específicas por proveedor
+            if instance['provider'] == 'aws':
+                print("\n   🔧 COMANDOS ÚTILES AWS:")
+                print(f"      aws ec2 describe-instances --instance-ids {instance.get('instance_id', 'INSTANCE_ID')}")
+                print(f"      aws ec2 describe-security-groups --filters Name=instance-id,Values={instance.get('instance_id', 'INSTANCE_ID')}")
+            elif instance['provider'] == 'azure':
+                print("\n   🔧 COMANDOS ÚTILES AZURE:")
+                print(f"      az vm show --name {instance['name']} --resource-group {instance.get('resource_group', 'RESOURCE_GROUP')}")
+                print(f"      az network nsg list --resource-group {instance.get('resource_group', 'RESOURCE_GROUP')}")
+        
+        print("\n" + "="*60)
+        print("📋 RESUMEN DE RECOMENDACIONES:")
+        print("="*60)
+        print("1. 🔑 Verificar que tienes la clave SSH correcta para cada instancia")
+        print("2. 🌐 Comprobar reglas de firewall (Security Groups/NSG)")
+        print("3. 🖥️  Verificar que las instancias estén ejecutándose")
+        print("4. 👥 Confirmar usuario SSH correcto (ec2-user, ubuntu, azureuser)")
+        print("5. 📁 Colocar archivos .pem en el directorio del proyecto")
+        print("="*60)
+    
+    def start_status_exporter(self):
+        """Inicia el exportador de estado de instancias automáticamente"""
+        try:
+            import subprocess
+            import time
+            
+            print("🔍 Iniciando exportador de estado de instancias...")
+            
+            # Verificar si ya está ejecutándose
+            try:
+                import requests
+                response = requests.get("http://localhost:9101/metrics", timeout=2)
+                if response.status_code == 200:
+                    print("   ✅ Exportador ya está ejecutándose")
+                    return True
+            except:
+                pass
+            
+            # Iniciar el exportador en segundo plano
+            script_path = Path("scripts/instance_status_exporter.py")
+            if script_path.exists():
+                self.status_exporter_process = subprocess.Popen(
+                    ["python", str(script_path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    cwd="."
+                )
+                
+                # Esperar a que esté disponible
+                for i in range(10):
+                    try:
+                        import requests
+                        response = requests.get("http://localhost:9101/metrics", timeout=2)
+                        if response.status_code == 200:
+                            print("   ✅ Exportador de estado iniciado exitosamente")
+                            return True
+                    except:
+                        time.sleep(1)
+                
+                print("   ⚠️  Exportador iniciado pero no responde aún")
+                return True
+            else:
+                print("   ❌ Script del exportador no encontrado")
+                return False
+                
+        except Exception as e:
+            print(f"   ❌ Error iniciando exportador: {e}")
+            return False
 
 if __name__ == "__main__":
     try:

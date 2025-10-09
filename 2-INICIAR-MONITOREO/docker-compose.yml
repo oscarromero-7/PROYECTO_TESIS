@@ -84,7 +84,7 @@ services:
     depends_on:
       - prometheus
 
-  # Opcional: Node Exporter local para monitorear el host de Docker
+  # Node Exporter local (opcional para host Docker)
   node-exporter:
     image: prom/node-exporter:latest
     container_name: optimon_node_exporter
@@ -107,14 +107,5 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      - "3000:3000"
-    restart: unless-stopped
-
-  windows-exporter:
-    image: ghcr.io/prometheus-community/windows-exporter:latest
-    container_name: optimon_windows_exporter
-    ports:
-      - "9182:9182"
-    restart: unless-stopped
     profiles:
-      - local-windows
+      - local
