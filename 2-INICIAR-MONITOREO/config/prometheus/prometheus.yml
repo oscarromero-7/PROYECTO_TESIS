@@ -12,10 +12,33 @@ scrape_configs:
  
   - job_name: "local_windows" 
     static_configs: 
-      - targets: ["host.docker.internal:9182"] 
+      - targets: ["host.docker.internal:9182"]  # Windows Exporter local via Docker
+        labels:
+          provider: "local"
+          os: "windows"
+          instance: "local-computer" 
  
+  # AWS EC2 instances - se configurarán automáticamente cuando agregues credenciales
   - job_name: "aws_ec2" 
     static_configs: 
-      - targets: ["54.91.7.131:9100"] 
-    scrape_interval: 30s 
+      - targets: []  # Vacío hasta que se configuren credenciales AWS
+        labels:
+          provider: "aws"
+    scrape_interval: 15s 
  
+  # Azure VMs - se configurarán automáticamente cuando agregues credenciales  
+  - job_name: "azure_vms"
+    static_configs:
+      - targets: []  # Vacío hasta que se configuren credenciales Azure
+        labels:
+          provider: "azure"
+    scrape_interval: 15s
+
+  # Servidores físicos/locales
+  - job_name: "physical-servers"
+    static_configs:
+      - targets: []  # Se llenará automáticamente
+        labels:
+          provider: "physical"
+    scrape_interval: 15s
+    metrics_path: /metrics
