@@ -1,0 +1,84 @@
+global:
+  # Sin configuración SMTP - usamos webhook a nuestro servicio interno
+  resolve_timeout: 5m
+
+# Configuración de rutas simplificada
+route:
+  group_by: ['alertname', 'server_type']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'optimon-webhook'  # Usar webhook por defecto
+  
+  routes:
+    # Alertas críticas - envío inmediato
+    - match:
+        severity: critical
+      receiver: 'optimon-critical-webhook'
+      group_wait: 0s
+      repeat_interval: 15m
+      
+    # Alertas de producción
+    - match:
+        server_type: production
+      receiver: 'optimon-production-webhook'
+      group_wait: 5s
+      repeat_interval: 30m
+      
+    # Alertas locales
+    - match:
+        server_type: local
+      receiver: 'optimon-local-webhook'
+      group_wait: 30s
+      repeat_interval: 2h
+
+receivers:
+  # Receptor principal - webhook a nuestro servicio SMTP
+  - name: 'optimon-webhook'
+    webhook_configs:
+      - url: 'http://localhost:5555/send-alert'
+        send_resolved: true
+        http_config:
+          headers:
+            Content-Type: 'application/json'
+            X-OptiMon-Type: 'general'
+        # Configuración del destinatario se pasa en el payload
+        
+  # Receptor para alertas críticas
+  - name: 'optimon-critical-webhook'
+    webhook_configs:
+      - url: 'http://localhost:5555/send-alert'
+        send_resolved: true
+        http_config:
+          headers:
+            Content-Type: 'application/json'
+            X-OptiMon-Type: 'critical'
+            X-OptiMon-Priority: 'high'
+            
+  # Receptor para alertas de producción
+  - name: 'optimon-production-webhook'
+    webhook_configs:
+      - url: 'http://localhost:5555/send-alert'
+        send_resolved: true
+        http_config:
+          headers:
+            Content-Type: 'application/json'
+            X-OptiMon-Type: 'production'
+            
+  # Receptor para alertas locales
+  - name: 'optimon-local-webhook'
+    webhook_configs:
+      - url: 'http://localhost:5555/send-alert'
+        send_resolved: true
+        http_config:
+          headers:
+            Content-Type: 'application/json'
+            X-OptiMon-Type: 'local'
+
+# Reglas de inhibición
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

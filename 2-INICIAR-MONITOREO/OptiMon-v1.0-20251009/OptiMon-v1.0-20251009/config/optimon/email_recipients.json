@@ -1,0 +1,22 @@
+{
+  "recipients": [
+    {
+      "email": "oagr2010@hotmail.com",
+      "name": "oagr2010",
+      "active": true,
+      "added_date": "C:\\Users\\oagr2\\Documents\\GitHub\\PROYECTO_TESIS\\2-INICIAR-MONITOREO"
+    },
+    {
+      "email": "wacry77@gmail.com",
+      "name": "wacry77",
+      "active": true,
+      "added_date": "C:\\Users\\oagr2\\Documents\\GitHub\\PROYECTO_TESIS\\2-INICIAR-MONITOREO"
+    },
+    {
+      "email": "maximat4@fpuna.edu.py",
+      "active": true,
+      "added_date": "2025-10-09T09:32:47.191361"
+    }
+  ],
+  "default_recipient": "oagr2010@hotmail.com"
+}

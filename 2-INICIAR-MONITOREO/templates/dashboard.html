@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}OptiMon Dashboard - Panel Principal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">
+        <i class="fas fa-tachometer-alt"></i> Panel de Control OptiMon
+    </h1>
+
+    <!-- Estado del Sistema -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3><i class="fas fa-server"></i> Estado del Sistema</h3>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card status-card {% if status.smtp_service %}status-online{% else %}status-offline{% endif %}">
+                <div class="card-body text-center">
+                    <i class="fas fa-envelope fa-2x {% if status.smtp_service %}text-success{% else %}text-danger{% endif %}"></i>
+                    <h5 class="card-title mt-2">Servicio SMTP</h5>
+                    <p class="card-text">
+                        {% if status.smtp_service %}
+                            <span class="badge bg-success">Online</span>
+                        {% else %}
+                            <span class="badge bg-danger">Offline</span>
+                        {% endif %}
+                    </p>
+                    {% if not status.smtp_service %}
+                    <button class="btn btn-sm btn-primary" onclick="restartSMTP()">
+                        <i class="fas fa-redo"></i> Reiniciar
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card status-card {% if status.prometheus %}status-online{% else %}status-offline{% endif %}">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x {% if status.prometheus %}text-success{% else %}text-danger{% endif %}"></i>
+                    <h5 class="card-title mt-2">Prometheus</h5>
+                    <p class="card-text">
+                        {% if status.prometheus %}
+                            <span class="badge bg-success">Online</span>
+                        {% else %}
+                            <span class="badge bg-danger">Offline</span>
+                        {% endif %}
+                    </p>
+                    {% if status.prometheus %}
+                    <a href="http://localhost:9090" target="_blank" class="btn btn-sm btn-info">
+                        <i class="fas fa-external-link-alt"></i> Abrir
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card status-card {% if status.grafana %}status-online{% else %}status-offline{% endif %}">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-area fa-2x {% if status.grafana %}text-success{% else %}text-danger{% endif %}"></i>
+                    <h5 class="card-title mt-2">Grafana</h5>
+                    <p class="card-text">
+                        {% if status.grafana %}
+                            <span class="badge bg-success">Online</span>
+                        {% else %}
+                            <span class="badge bg-danger">Offline</span>
+                        {% endif %}
+                    </p>
+                    {% if status.grafana %}
+                    <a href="http://localhost:3000" target="_blank" class="btn btn-sm btn-info">
+                        <i class="fas fa-external-link-alt"></i> Abrir
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card status-card {% if status.alertmanager %}status-online{% else %}status-offline{% endif %}">
+                <div class="card-body text-center">
+                    <i class="fas fa-bell fa-2x {% if status.alertmanager %}text-success{% else %}text-danger{% endif %}"></i>
+                    <h5 class="card-title mt-2">AlertManager</h5>
+                    <p class="card-text">
+                        {% if status.alertmanager %}
+                            <span class="badge bg-success">Online</span>
+                        {% else %}
+                            <span class="badge bg-danger">Offline</span>
+                        {% endif %}
+                    </p>
+                    {% if status.alertmanager %}
+                    <a href="http://localhost:9093" target="_blank" class="btn btn-sm btn-info">
+                        <i class="fas fa-external-link-alt"></i> Abrir
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuraciones -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3><i class="fas fa-cogs"></i> Estado de Configuraciones</h3>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card status-card {% if status.emails_configured %}status-online{% else %}status-warning{% endif %}">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-envelope"></i> Emails
+                    </h5>
+                    <p class="card-text">
+                        {% if status.emails_configured %}
+                            <span class="badge bg-success">Configurado</span>
+                            <br><small class="text-muted">Destinatarios configurados</small>
+                        {% else %}
+                            <span class="badge bg-warning">Pendiente</span>
+                            <br><small class="text-muted">Configura destinatarios</small>
+                        {% endif %}
+                    </p>
+                    <a href="{{ url_for('emails_management') }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-cog"></i> Configurar
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card status-card {% if status.cloud_configured %}status-online{% else %}status-warning{% endif %}">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-cloud"></i> Cloud
+                    </h5>
+                    <p class="card-text">
+                        {% if status.cloud_configured %}
+                            <span class="badge bg-success">Configurado</span>
+                            <br><small class="text-muted">Proveedores conectados</small>
+                        {% else %}
+                            <span class="badge bg-warning">Pendiente</span>
+                            <br><small class="text-muted">Conecta proveedores cloud</small>
+                        {% endif %}
+                    </p>
+                    <a href="{{ url_for('cloud_configuration') }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-cog"></i> Configurar
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card status-card {% if status.local_monitoring %}status-online{% else %}status-warning{% endif %}">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-desktop"></i> Monitoreo Local
+                    </h5>
+                    <p class="card-text">
+                        {% if status.local_monitoring %}
+                            <span class="badge bg-success">Activo</span>
+                            <br><small class="text-muted">Monitoreando máquina local</small>
+                        {% else %}
+                            <span class="badge bg-warning">Inactivo</span>
+                            <br><small class="text-muted">Activa monitoreo local</small>
+                        {% endif %}
+                    </p>
+                    <a href="{{ url_for('monitoring_configuration') }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-cog"></i> Configurar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones Rápidas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3><i class="fas fa-bolt"></i> Acciones Rápidas</h3>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-paper-plane fa-2x text-primary"></i>
+                    <h5 class="card-title mt-2">Probar Email</h5>
+                    <p class="card-text">Enviar email de prueba</p>
+                    <button class="btn btn-primary" onclick="testEmail()">
+                        <i class="fas fa-paper-plane"></i> Enviar Prueba
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-play fa-2x text-success"></i>
+                    <h5 class="card-title mt-2">Iniciar Sistema</h5>
+                    <p class="card-text">Iniciar todos los servicios</p>
+                    <button class="btn btn-success" onclick="startSystem()">
+                        <i class="fas fa-play"></i> Iniciar Todo
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-redo fa-2x text-warning"></i>
+                    <h5 class="card-title mt-2">Reiniciar SMTP</h5>
+                    <p class="card-text">Reiniciar servicio de emails</p>
+                    <button class="btn btn-warning" onclick="restartSMTP()">
+                        <i class="fas fa-redo"></i> Reiniciar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-sync-alt fa-2x text-info"></i>
+                    <h5 class="card-title mt-2">Actualizar Estado</h5>
+                    <p class="card-text">Verificar servicios</p>
+                    <button class="btn btn-info" onclick="refreshStatus()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function testEmail() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    button.disabled = true;
+    
+    fetch('/api/test-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+        } else {
+            showAlert(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error enviando email de prueba', 'danger');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+function restartSMTP() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reiniciando...';
+    button.disabled = true;
+    
+    fetch('/api/restart-smtp')
+    .then(response => response.json())
+    .then(data => {
+        showAlert('Servicio SMTP reiniciado', 'success');
+        setTimeout(() => {
+            location.reload();
+        }, 3000);
+    })
+    .catch(error => {
+        showAlert('Error reiniciando servicio SMTP', 'danger');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+function startSystem() {
+    showAlert('Iniciando sistema completo...', 'info');
+    // Aquí puedes agregar la lógica para iniciar docker-compose
+    setTimeout(() => {
+        location.reload();
+    }, 5000);
+}
+</script>
+{% endblock %}

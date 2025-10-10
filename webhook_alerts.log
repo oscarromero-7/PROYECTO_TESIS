@@ -1,0 +1,11 @@
+2025-10-09 07:28:34,270 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.0.25:8080
+2025-10-09 07:28:34,271 - INFO - [33mPress CTRL+C to quit[0m
+2025-10-09 07:29:01,091 - INFO - 127.0.0.1 - - [09/Oct/2025 07:29:01] "GET /webhook/status HTTP/1.1" 200 -
+2025-10-09 07:29:03,475 - INFO - Alerta de producción registrada: 1 alertas
+2025-10-09 07:29:03,476 - INFO - 127.0.0.1 - - [09/Oct/2025 07:29:03] "POST /webhook/test HTTP/1.1" 200 -
+2025-10-09 07:34:42,115 - INFO - Recibidas 1 alertas críticas de producción
+2025-10-09 07:34:42,128 - INFO - Alerta de producción registrada: 1 alertas
+2025-10-09 07:34:42,132 - INFO - 127.0.0.1 - - [09/Oct/2025 07:34:42] "POST /webhook/production-critical HTTP/1.1" 200 -

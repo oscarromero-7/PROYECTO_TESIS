@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+
+{% block title %}OptiMon Dashboard - Configuración SMTP{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">
+        <i class="fas fa-server"></i> Configuración SMTP
+    </h1>
+
+    <div class="row">
+        <!-- Configuración SMTP -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-cog"></i> Configuración del Servidor</h5>
+                </div>
+                <div class="card-body">
+                    <form id="smtpConfigForm">
+                        <div class="mb-3">
+                            <label for="smtpProvider" class="form-label">Proveedor</label>
+                            <select class="form-control" id="smtpProvider" onchange="updateSmtpConfig()">
+                                <option value="gmail">Gmail</option>
+                                <option value="outlook">Outlook</option>
+                                <option value="yahoo">Yahoo</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="smtpHost" class="form-label">Servidor SMTP</label>
+                            <input type="text" class="form-control" id="smtpHost" 
+                                   placeholder="smtp.gmail.com">
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="smtpPort" class="form-label">Puerto</label>
+                                    <input type="number" class="form-control" id="smtpPort" 
+                                           placeholder="587">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="smtpSecurity" class="form-label">Seguridad</label>
+                                    <select class="form-control" id="smtpSecurity">
+                                        <option value="tls">TLS</option>
+                                        <option value="ssl">SSL</option>
+                                        <option value="none">Ninguna</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="smtpUser" class="form-label">Usuario/Email</label>
+                            <input type="email" class="form-control" id="smtpUser" 
+                                   placeholder="tu-email@gmail.com">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="smtpPassword" class="form-label">Contraseña/App Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="smtpPassword" 
+                                       placeholder="Contraseña de aplicación">
+                                <button type="button" class="btn btn-outline-secondary" 
+                                        onclick="togglePassword('smtpPassword')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted">
+                                Para Gmail, usa una contraseña de aplicación específica
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="senderName" class="form-label">Nombre del Remitente</label>
+                            <input type="text" class="form-control" id="senderName" 
+                                   placeholder="OptiMon Alerts" value="OptiMon Alerts">
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Guardar Configuración
+                            </button>
+                            <button type="button" class="btn btn-success" onclick="testSmtpConnection()">
+                                <i class="fas fa-paper-plane"></i> Probar Conexión
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estado del Servicio -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Estado del Servicio</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>Estado SMTP:</strong>
+                        </div>
+                        <div class="col-6">
+                            <span id="smtpStatus" class="badge bg-secondary">Desconocido</span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>Última Conexión:</strong>
+                        </div>
+                        <div class="col-6">
+                            <span id="lastConnection">Nunca</span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>Emails Enviados:</strong>
+                        </div>
+                        <div class="col-6">
+                            <span id="emailsSent">0</span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>Último Error:</strong>
+                        </div>
+                        <div class="col-6">
+                            <span id="lastError" class="text-muted">Ninguno</span>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-success" onclick="startSmtpService()">
+                            <i class="fas fa-play"></i> Iniciar Servicio
+                        </button>
+                        <button class="btn btn-outline-warning" onclick="restartSmtpService()">
+                            <i class="fas fa-redo"></i> Reiniciar Servicio
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="stopSmtpService()">
+                            <i class="fas fa-stop"></i> Detener Servicio
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs recientes -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-file-alt"></i> Logs Recientes</h6>
+                </div>
+                <div class="card-body">
+                    <div id="smtpLogs" style="max-height: 200px; overflow-y: auto;">
+                        <small class="text-muted">No hay logs disponibles</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Guías de configuración -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-question-circle"></i> Guías de Configuración</h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="smtpGuides">
+                        <!-- Gmail -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="gmailGuide">
+                                <button class="accordion-button collapsed" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#collapseGmail">
+                                    <i class="fab fa-google me-2"></i> Configurar Gmail
+                                </button>
+                            </h2>
+                            <div id="collapseGmail" class="accordion-collapse collapse" 
+                                 data-bs-parent="#smtpGuides">
+                                <div class="accordion-body">
+                                    <ol>
+                                        <li>Ve a <strong>Configuración de la cuenta de Google</strong></li>
+                                        <li>Habilita <strong>Verificación en 2 pasos</strong></li>
+                                        <li>Ve a <strong>Contraseñas de aplicaciones</strong></li>
+                                        <li>Genera una contraseña para "Correo"</li>
+                                        <li>Usa esa contraseña en el campo de contraseña</li>
+                                    </ol>
+                                    <p><strong>Configuración:</strong></p>
+                                    <ul>
+                                        <li>Servidor: smtp.gmail.com</li>
+                                        <li>Puerto: 587</li>
+                                        <li>Seguridad: TLS</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Outlook -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="outlookGuide">
+                                <button class="accordion-button collapsed" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#collapseOutlook">
+                                    <i class="fab fa-microsoft me-2"></i> Configurar Outlook
+                                </button>
+                            </h2>
+                            <div id="collapseOutlook" class="accordion-collapse collapse" 
+                                 data-bs-parent="#smtpGuides">
+                                <div class="accordion-body">
+                                    <p><strong>Configuración:</strong></p>
+                                    <ul>
+                                        <li>Servidor: smtp.live.com</li>
+                                        <li>Puerto: 587</li>
+                                        <li>Seguridad: TLS</li>
+                                        <li>Habilita "Acceso de aplicaciones menos seguras" si es necesario</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Yahoo -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="yahooGuide">
+                                <button class="accordion-button collapsed" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#collapseYahoo">
+                                    <i class="fab fa-yahoo me-2"></i> Configurar Yahoo
+                                </button>
+                            </h2>
+                            <div id="collapseYahoo" class="accordion-collapse collapse" 
+                                 data-bs-parent="#smtpGuides">
+                                <div class="accordion-body">
+                                    <p><strong>Configuración:</strong></p>
+                                    <ul>
+                                        <li>Servidor: smtp.mail.yahoo.com</li>
+                                        <li>Puerto: 587</li>
+                                        <li>Seguridad: TLS</li>
+                                        <li>Genera una contraseña de aplicación en las configuraciones de seguridad</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const smtpProviders = {
+    gmail: {
+        host: 'smtp.gmail.com',
+        port: 587,
+        security: 'tls'
+    },
+    outlook: {
+        host: 'smtp.live.com',
+        port: 587,
+        security: 'tls'
+    },
+    yahoo: {
+        host: 'smtp.mail.yahoo.com',
+        port: 587,
+        security: 'tls'
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSmtpConfig();
+    updateSmtpStatus();
+    loadSmtpLogs();
+    
+    // Actualizar estado cada 30 segundos
+    setInterval(updateSmtpStatus, 30000);
+});
+
+function updateSmtpConfig() {
+    const provider = document.getElementById('smtpProvider').value;
+    
+    if (provider !== 'custom' && smtpProviders[provider]) {
+        const config = smtpProviders[provider];
+        document.getElementById('smtpHost').value = config.host;
+        document.getElementById('smtpPort').value = config.port;
+        document.getElementById('smtpSecurity').value = config.security;
+    }
+}
+
+function loadSmtpConfig() {
+    fetch('/api/smtp')
+    .then(response => response.json())
+    .then(data => {
+        if (data.host) {
+            document.getElementById('smtpHost').value = data.host;
+            document.getElementById('smtpPort').value = data.port;
+            document.getElementById('smtpSecurity').value = data.security || 'tls';
+            document.getElementById('smtpUser').value = data.user || '';
+            document.getElementById('senderName').value = data.sender_name || 'OptiMon Alerts';
+        }
+    })
+    .catch(error => {
+        console.log('Sin configuración SMTP previa');
+    });
+}
+
+function updateSmtpStatus() {
+    fetch('/api/smtp/status')
+    .then(response => response.json())
+    .then(data => {
+        const statusElement = document.getElementById('smtpStatus');
+        const statusClass = data.running ? 'bg-success' : 'bg-danger';
+        const statusText = data.running ? 'Activo' : 'Inactivo';
+        
+        statusElement.className = `badge ${statusClass}`;
+        statusElement.textContent = statusText;
+        
+        if (data.last_connection) {
+            document.getElementById('lastConnection').textContent = 
+                new Date(data.last_connection).toLocaleString();
+        }
+        
+        if (data.emails_sent !== undefined) {
+            document.getElementById('emailsSent').textContent = data.emails_sent;
+        }
+        
+        if (data.last_error) {
+            document.getElementById('lastError').textContent = data.last_error;
+            document.getElementById('lastError').className = 'text-danger';
+        }
+    })
+    .catch(error => {
+        document.getElementById('smtpStatus').className = 'badge bg-secondary';
+        document.getElementById('smtpStatus').textContent = 'Error';
+    });
+}
+
+function loadSmtpLogs() {
+    fetch('/api/smtp/logs')
+    .then(response => response.json())
+    .then(data => {
+        const logsContainer = document.getElementById('smtpLogs');
+        if (data.logs && data.logs.length > 0) {
+            let html = '';
+            data.logs.forEach(log => {
+                const timestamp = new Date(log.timestamp).toLocaleTimeString();
+                const levelClass = log.level === 'ERROR' ? 'text-danger' : 'text-info';
+                html += `
+                    <div class="small mb-1">
+                        <span class="text-muted">${timestamp}</span>
+                        <span class="${levelClass}">[${log.level}]</span>
+                        ${log.message}
+                    </div>
+                `;
+            });
+            logsContainer.innerHTML = html;
+        }
+    })
+    .catch(error => {
+        console.log('Error cargando logs');
+    });
+}
+
+// Guardar configuración SMTP
+document.getElementById('smtpConfigForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const config = {
+        host: document.getElementById('smtpHost').value,
+        port: parseInt(document.getElementById('smtpPort').value),
+        security: document.getElementById('smtpSecurity').value,
+        user: document.getElementById('smtpUser').value,
+        password: document.getElementById('smtpPassword').value,
+        sender_name: document.getElementById('senderName').value
+    };
+    
+    fetch('/api/smtp', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showAlert(data.error, 'danger');
+        } else {
+            showAlert(data.message, 'success');
+            updateSmtpStatus();
+        }
+    })
+    .catch(error => {
+        showAlert('Error guardando configuración SMTP', 'danger');
+    });
+});
+
+function testSmtpConnection() {
+    showAlert('Probando conexión SMTP...', 'info');
+    
+    fetch('/api/smtp/test', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+        } else {
+            showAlert(data.message, 'danger');
+        }
+        updateSmtpStatus();
+    })
+    .catch(error => {
+        showAlert('Error probando conexión SMTP', 'danger');
+    });
+}
+
+function startSmtpService() {
+    fetch('/api/smtp/start', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        showAlert(data.message, data.success ? 'success' : 'danger');
+        updateSmtpStatus();
+    })
+    .catch(error => {
+        showAlert('Error iniciando servicio SMTP', 'danger');
+    });
+}
+
+function restartSmtpService() {
+    fetch('/api/smtp/restart', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        showAlert(data.message, data.success ? 'success' : 'danger');
+        updateSmtpStatus();
+    })
+    .catch(error => {
+        showAlert('Error reiniciando servicio SMTP', 'danger');
+    });
+}
+
+function stopSmtpService() {
+    fetch('/api/smtp/stop', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        showAlert(data.message, data.success ? 'success' : 'danger');
+        updateSmtpStatus();
+    })
+    .catch(error => {
+        showAlert('Error deteniendo servicio SMTP', 'danger');
+    });
+}
+
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const icon = field.nextElementSibling.querySelector('i');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        field.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+</script>
+{% endblock %}

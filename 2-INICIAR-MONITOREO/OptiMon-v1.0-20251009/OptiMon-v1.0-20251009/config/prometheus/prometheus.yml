@@ -1,0 +1,42 @@
+global: 
+  scrape_interval: 15s 
+  evaluation_interval: 15s 
+ 
+rule_files: 
+  - "alert.rules.yml" 
+ 
+scrape_configs: 
+  - job_name: "prometheus" 
+    static_configs: 
+      - targets: ["localhost:9090"] 
+ 
+  - job_name: "local_windows" 
+    static_configs: 
+      - targets: ["host.docker.internal:9100"]  # Node Exporter local via Docker
+        labels:
+          provider: "local"
+          os: "windows"
+          instance: "local-computer" 
+ 
+  - job_name: "aws_ec2" 
+    static_configs: 
+      - targets: ["3.85.203.242:9100", "52.91.54.26:9100"]  # AWS instancias funcionando
+        labels:
+          provider: "aws"
+    scrape_interval: 15s 
+ 
+  - job_name: "azure_vms"
+    static_configs:
+      - targets: ["172.191.59.230:9100"]  # Azure VM
+        labels:
+          provider: "azure"
+    scrape_interval: 15s
+
+  # Servidores físicos/locales
+  - job_name: "physical-servers"
+    static_configs:
+      - targets: []  # Se llenará automáticamente
+        labels:
+          provider: "physical"
+    scrape_interval: 15s
+    metrics_path: /metrics

@@ -1,0 +1,214 @@
+global:
+  smtp_smarthost: 'smtp-mail.outlook.com:587'
+  smtp_from: 'oagr2010@outlook.com'
+  smtp_auth_username: 'oagr2010@outlook.com'
+  smtp_auth_password: 'mangaka2015'  # ⚠️ CAMBIA ESTO por tu contraseña
+  smtp_require_tls: true
+
+# Enrutamiento principal - diferenciado por tipo de servidor
+route:
+  group_by: ['alertname', 'server_type']
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-email'
+  routes:
+    # ALERTAS DE PRODUCCIÓN (AWS/Azure/Physical) - CRÍTICAS
+    - match:
+        server_type: aws
+      receiver: 'production-critical'
+      group_wait: 5s
+      repeat_interval: 30m
+      routes:
+        - match:
+            severity: critical
+          receiver: 'production-emergency'
+          group_wait: 0s
+          repeat_interval: 15m
+    
+    - match:
+        server_type: azure
+      receiver: 'production-critical'
+      group_wait: 5s
+      repeat_interval: 30m
+      routes:
+        - match:
+            severity: critical
+          receiver: 'production-emergency'
+          group_wait: 0s
+          repeat_interval: 15m
+    
+    - match:
+        server_type: linux_physical
+      receiver: 'production-critical'
+      group_wait: 5s
+      repeat_interval: 30m
+      routes:
+        - match:
+            severity: critical
+          receiver: 'production-emergency'
+          group_wait: 0s
+          repeat_interval: 15m
+    
+    # ALERTAS LOCALES (Windows) - NO CRÍTICAS
+    - match:
+        server_type: windows
+      receiver: 'local-notifications'
+      group_wait: 30s
+      repeat_interval: 2h
+      routes:
+        - match:
+            severity: critical
+          receiver: 'local-urgent'
+          group_wait: 10s
+          repeat_interval: 1h
+
+receivers:
+  # RECEPTOR POR DEFECTO
+  - name: 'default-email'
+    email_configs:
+      - to: 'oagr2010@hotmail.com'
+        subject: '[OptiMon] Alerta General - {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>⚠️ Alerta OptiMon</h2>
+          <p><strong>Alerta:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Estado:</strong> {{ .Status }}</p>
+          {{ range .Alerts }}
+          <div style="border-left: 3px solid #ff9800; padding: 10px; margin: 10px 0;">
+            <p><strong>Servidor:</strong> {{ .Labels.server_name }}</p>
+            <p><strong>Instancia:</strong> {{ .Labels.instance }}</p>
+            <p><strong>Severidad:</strong> {{ .Labels.severity }}</p>
+            <p><strong>Descripción:</strong> {{ .Annotations.description }}</p>
+          </div>
+          {{ end }}
+
+  # ALERTAS DE PRODUCCIÓN - EMERGENCIA (CRÍTICAS)
+  - name: 'production-emergency'
+    email_configs:
+      - to: 'oagr2010@hotmail.com'
+        subject: '🚨 EMERGENCIA PRODUCCIÓN - {{ .GroupLabels.alertname }}'
+        html: |
+          <div style="background: #d32f2f; color: white; padding: 20px; font-family: Arial;">
+            <h1>🚨 ALERTA CRÍTICA DE PRODUCCIÓN</h1>
+            <h2>{{ .GroupLabels.alertname }}</h2>
+            
+            <div style="background: white; color: black; padding: 15px; margin: 20px 0; border-radius: 5px;">
+              {{ range .Alerts }}
+              <div style="margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 15px;">
+                <h3 style="color: #d32f2f;">🖥️ {{ .Labels.server_name }}</h3>
+                <p><strong>📍 Servidor:</strong> {{ .Labels.instance }}</p>
+                <p><strong>🔥 Severidad:</strong> {{ .Labels.severity | upper }}</p>
+                <p><strong>🌐 Tipo:</strong> {{ .Labels.server_type | upper }}</p>
+                <p><strong>📝 Problema:</strong> {{ .Annotations.summary }}</p>
+                <p><strong>📊 Detalles:</strong> {{ .Annotations.description }}</p>
+                <p style="font-size: 12px; color: #666;">
+                  🕒 Inicio: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                </p>
+              </div>
+              {{ end }}
+            </div>
+            
+            <div style="background: #ffeb3b; color: black; padding: 10px; border-radius: 5px;">
+              <strong>⚡ ACCIÓN REQUERIDA INMEDIATA:</strong>
+              <ul>
+                <li>Verificar estado del servidor inmediatamente</li>
+                <li>Contactar al equipo de soporte si es necesario</li>
+                <li>Documentar acciones tomadas</li>
+              </ul>
+            </div>
+          </div>
+    # Webhook para Slack/Teams (puedes configurar más tarde)
+    webhook_configs:
+      - url: 'http://localhost:8080/webhook/production-critical'
+        send_resolved: true
+
+  # ALERTAS DE PRODUCCIÓN - NORMALES
+  - name: 'production-critical'
+    email_configs:
+      - to: 'oagr2010@hotmail.com'
+        subject: '⚠️ Alerta Producción - {{ .GroupLabels.alertname }}'
+        html: |
+          <div style="background: #ff9800; color: white; padding: 15px; font-family: Arial;">
+            <h2>⚠️ Alerta de Servidor de Producción</h2>
+            <h3>{{ .GroupLabels.alertname }}</h3>
+            
+            {{ range .Alerts }}
+            <div style="background: white; color: black; padding: 15px; margin: 10px 0; border-radius: 5px;">
+              <h4>🖥️ {{ .Labels.server_name }}</h4>
+              <p><strong>Servidor:</strong> {{ .Labels.instance }}</p>
+              <p><strong>Tipo:</strong> {{ .Labels.server_type | upper }}</p>
+              <p><strong>Severidad:</strong> {{ .Labels.severity }}</p>
+              <p><strong>Resumen:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Descripción:</strong> {{ .Annotations.description }}</p>
+              <p style="font-size: 12px; color: #666;">Inicio: {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+            </div>
+            {{ end }}
+            
+            <p style="font-size: 12px;">
+              🔗 <a href="http://localhost:3000" style="color: white;">Ver Dashboard</a> | 
+              <a href="http://localhost:9093" style="color: white;">Gestionar Alertas</a>
+            </p>
+          </div>
+
+  # ALERTAS LOCALES - URGENTES
+  - name: 'local-urgent'
+    email_configs:
+      - to: 'oagr2010@hotmail.com'
+        subject: '🔥 Local Urgente - {{ .GroupLabels.alertname }}'
+        html: |
+          <div style="background: #2196f3; color: white; padding: 15px; font-family: Arial;">
+            <h2>🔥 Alerta Urgente - PC Local</h2>
+            <h3>{{ .GroupLabels.alertname }}</h3>
+            
+            {{ range .Alerts }}
+            <div style="background: white; color: black; padding: 15px; margin: 10px 0; border-radius: 5px;">
+              <h4>💻 {{ .Labels.server_name }}</h4>
+              <p><strong>Problema:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Detalles:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Severidad:</strong> {{ .Labels.severity }}</p>
+              <p style="font-size: 12px; color: #666;">Inicio: {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+            </div>
+            {{ end }}
+            
+            <div style="background: #e3f2fd; color: black; padding: 10px; border-radius: 5px; margin-top: 15px;">
+              <p><strong>💡 Nota:</strong> Esta es una alerta de tu PC local. No afecta producción, pero requiere tu atención.</p>
+            </div>
+          </div>
+
+  # ALERTAS LOCALES - NORMALES
+  - name: 'local-notifications'
+    email_configs:
+      - to: 'oagr2010@hotmail.com'
+        subject: '📍 Info Local - {{ .GroupLabels.alertname }}'
+        html: |
+          <div style="background: #4caf50; color: white; padding: 15px; font-family: Arial;">
+            <h2>📍 Notificación - PC Local</h2>
+            <h3>{{ .GroupLabels.alertname }}</h3>
+            
+            {{ range .Alerts }}
+            <div style="background: white; color: black; padding: 15px; margin: 10px 0; border-radius: 5px;">
+              <h4>💻 {{ .Labels.server_name }}</h4>
+              <p><strong>Información:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Detalles:</strong> {{ .Annotations.description }}</p>
+              <p style="font-size: 12px; color: #666;">Inicio: {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+            </div>
+            {{ end }}
+            
+            <div style="background: #e8f5e8; color: black; padding: 10px; border-radius: 5px; margin-top: 15px;">
+              <p><strong>ℹ️ Info:</strong> Esta es una notificación informativa de tu PC local.</p>
+            </div>
+          </div>
+
+# Configuración para manejar alertas inhibidas (evitar spam)
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['instance']
+  
+  - source_match:
+      alertname: 'WindowsServerDown'
+    target_match_re:
+      alertname: '.*CPU.*|.*Memory.*|.*Disk.*'
+    equal: ['instance']

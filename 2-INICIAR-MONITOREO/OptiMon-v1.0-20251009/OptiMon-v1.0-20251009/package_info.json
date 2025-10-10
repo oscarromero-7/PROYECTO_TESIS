@@ -1,0 +1,26 @@
+{
+  "name": "OptiMon",
+  "version": "1.0",
+  "description": "Sistema completo de monitoreo automatizado",
+  "build_date": "2025-10-09T10:53:07.073374",
+  "components": {
+    "prometheus": "Recolección de métricas",
+    "grafana": "Visualización de datos",
+    "alertmanager": "Gestión de alertas",
+    "dashboard": "Panel de control web",
+    "smtp_service": "Servicio de emails"
+  },
+  "requirements": {
+    "python": ">=3.8",
+    "docker": "Docker Desktop recomendado",
+    "memory": ">=1GB disponible",
+    "disk": ">=2GB disponible"
+  },
+  "ports": {
+    "dashboard": 8080,
+    "prometheus": 9090,
+    "grafana": 3000,
+    "alertmanager": 9093,
+    "smtp": 5555
+  }
+}

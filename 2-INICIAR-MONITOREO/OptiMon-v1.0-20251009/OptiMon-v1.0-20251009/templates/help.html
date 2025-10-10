@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+
+{% block title %}OptiMon Dashboard - Ayuda{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">
+        <i class="fas fa-question-circle"></i> Ayuda y Documentación
+    </h1>
+
+    <div class="row">
+        <div class="col-md-3">
+            <!-- Navegación lateral -->
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-list"></i> Contenido</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="#intro" class="list-group-item list-group-item-action">
+                            <i class="fas fa-play-circle"></i> Introducción
+                        </a>
+                        <a href="#setup" class="list-group-item list-group-item-action">
+                            <i class="fas fa-cog"></i> Configuración Inicial
+                        </a>
+                        <a href="#emails" class="list-group-item list-group-item-action">
+                            <i class="fas fa-envelope"></i> Configurar Emails
+                        </a>
+                        <a href="#cloud" class="list-group-item list-group-item-action">
+                            <i class="fas fa-cloud"></i> Proveedores Cloud
+                        </a>
+                        <a href="#monitoring" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-line"></i> Monitoreo
+                        </a>
+                        <a href="#alerts" class="list-group-item list-group-item-action">
+                            <i class="fas fa-bell"></i> Alertas
+                        </a>
+                        <a href="#troubleshooting" class="list-group-item list-group-item-action">
+                            <i class="fas fa-wrench"></i> Solución de Problemas
+                        </a>
+                        <a href="#api" class="list-group-item list-group-item-action">
+                            <i class="fas fa-code"></i> API Reference
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <div class="help-content">
+                
+                <!-- Introducción -->
+                <section id="intro" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-play-circle"></i> Introducción a OptiMon</h3>
+                        </div>
+                        <div class="card-body">
+                            <p>OptiMon es una solución completa de monitoreo de infraestructura que te permite:</p>
+                            <ul>
+                                <li><strong>Monitorear múltiples proveedores cloud</strong> (AWS, Azure, Google Cloud)</li>
+                                <li><strong>Supervisar servidores locales</strong> con métricas detalladas</li>
+                                <li><strong>Recibir alertas por email</strong> cuando algo requiere atención</li>
+                                <li><strong>Visualizar dashboards</strong> con gráficos en tiempo real</li>
+                                <li><strong>Configurar umbrales personalizados</strong> para cada métrica</li>
+                            </ul>
+                            
+                            <h5>Componentes Principales:</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <ul>
+                                        <li><strong>Prometheus:</strong> Base de datos de métricas</li>
+                                        <li><strong>Grafana:</strong> Visualización de dashboards</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <ul>
+                                        <li><strong>AlertManager:</strong> Gestión de alertas</li>
+                                        <li><strong>Node Exporter:</strong> Recolección de métricas del sistema</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Configuración Inicial -->
+                <section id="setup" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-cog"></i> Configuración Inicial</h3>
+                        </div>
+                        <div class="card-body">
+                            <h5>Pasos para configurar OptiMon:</h5>
+                            <ol>
+                                <li><strong>Configurar el servicio SMTP</strong>
+                                    <ul>
+                                        <li>Ve a la sección "SMTP" en el menú lateral</li>
+                                        <li>Selecciona tu proveedor de email (Gmail, Outlook, etc.)</li>
+                                        <li>Ingresa tus credenciales</li>
+                                        <li>Haz clic en "Probar Conexión" para verificar</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Agregar emails de destino</strong>
+                                    <ul>
+                                        <li>Ve a la sección "Emails"</li>
+                                        <li>Agrega los emails que recibirán las alertas</li>
+                                        <li>Marca uno como principal</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Configurar proveedores cloud (opcional)</strong>
+                                    <ul>
+                                        <li>Ve a la sección "Cloud"</li>
+                                        <li>Configura AWS, Azure o Google Cloud según necesites</li>
+                                        <li>Prueba las conexiones</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Configurar monitoreo local</strong>
+                                    <ul>
+                                        <li>Instala el Node Exporter si no está instalado</li>
+                                        <li>Configura los umbrales de alertas</li>
+                                        <li>Inicia el sistema de monitoreo</li>
+                                    </ul>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Configuración de Emails -->
+                <section id="emails" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-envelope"></i> Configurar Emails</h3>
+                        </div>
+                        <div class="card-body">
+                            <h5>Configuración SMTP para Gmail:</h5>
+                            <ol>
+                                <li>Habilita la verificación en 2 pasos en tu cuenta de Google</li>
+                                <li>Ve a "Configuración de la cuenta" → "Seguridad"</li>
+                                <li>Busca "Contraseñas de aplicaciones"</li>
+                                <li>Genera una contraseña para "Correo"</li>
+                                <li>Usa esa contraseña en OptiMon (no tu contraseña normal)</li>
+                            </ol>
+
+                            <div class="alert alert-info">
+                                <strong>Configuración automática para Gmail:</strong><br>
+                                Servidor: smtp.gmail.com<br>
+                                Puerto: 587<br>
+                                Seguridad: TLS
+                            </div>
+
+                            <h5>Configuración SMTP para Outlook:</h5>
+                            <div class="alert alert-info">
+                                Servidor: smtp.live.com<br>
+                                Puerto: 587<br>
+                                Seguridad: TLS<br>
+                                Puede requerir habilitar "Acceso de aplicaciones menos seguras"
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Proveedores Cloud -->
+                <section id="cloud" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-cloud"></i> Proveedores Cloud</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="accordion" id="cloudProviders">
+                                <!-- AWS -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#awsHelp">
+                                            <i class="fab fa-aws me-2"></i> Amazon Web Services (AWS)
+                                        </button>
+                                    </h2>
+                                    <div id="awsHelp" class="accordion-collapse collapse show" data-bs-parent="#cloudProviders">
+                                        <div class="accordion-body">
+                                            <strong>Pasos para configurar AWS:</strong>
+                                            <ol>
+                                                <li>Accede a la consola de AWS</li>
+                                                <li>Ve a IAM (Identity and Access Management)</li>
+                                                <li>Crea un nuevo usuario programático</li>
+                                                <li>Asigna las siguientes políticas:
+                                                    <ul>
+                                                        <li>CloudWatchReadOnlyAccess</li>
+                                                        <li>EC2ReadOnlyAccess</li>
+                                                        <li>RDSReadOnlyAccess</li>
+                                                    </ul>
+                                                </li>
+                                                <li>Descarga las credenciales (Access Key ID y Secret)</li>
+                                                <li>Ingresa las credenciales en OptiMon</li>
+                                                <li>Selecciona la región y servicios a monitorear</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Azure -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#azureHelp">
+                                            <i class="fab fa-microsoft me-2"></i> Microsoft Azure
+                                        </button>
+                                    </h2>
+                                    <div id="azureHelp" class="accordion-collapse collapse" data-bs-parent="#cloudProviders">
+                                        <div class="accordion-body">
+                                            <strong>Pasos para configurar Azure:</strong>
+                                            <ol>
+                                                <li>Accede al portal de Azure</li>
+                                                <li>Ve a "Azure Active Directory"</li>
+                                                <li>Registra una nueva aplicación</li>
+                                                <li>Crea un client secret</li>
+                                                <li>Asigna permisos de "Reader" en la suscripción</li>
+                                                <li>Anota: Subscription ID, Tenant ID, Client ID, Client Secret</li>
+                                                <li>Ingresa estas credenciales en OptiMon</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- GCP -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#gcpHelp">
+                                            <i class="fab fa-google me-2"></i> Google Cloud Platform
+                                        </button>
+                                    </h2>
+                                    <div id="gcpHelp" class="accordion-collapse collapse" data-bs-parent="#cloudProviders">
+                                        <div class="accordion-body">
+                                            <strong>Pasos para configurar GCP:</strong>
+                                            <ol>
+                                                <li>Accede a la consola de Google Cloud</li>
+                                                <li>Ve a "IAM & Admin" → "Service Accounts"</li>
+                                                <li>Crea una nueva cuenta de servicio</li>
+                                                <li>Asigna el rol "Monitoring Viewer"</li>
+                                                <li>Crea una clave JSON</li>
+                                                <li>Descarga el archivo JSON</li>
+                                                <li>Pega el contenido del JSON en OptiMon</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Monitoreo -->
+                <section id="monitoring" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-line"></i> Sistema de Monitoreo</h3>
+                        </div>
+                        <div class="card-body">
+                            <h5>Métricas Monitoreadas:</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <ul>
+                                        <li><strong>CPU:</strong> Porcentaje de uso del procesador</li>
+                                        <li><strong>Memoria:</strong> Uso de RAM del sistema</li>
+                                        <li><strong>Disco:</strong> Espacio utilizado en discos</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <ul>
+                                        <li><strong>Red:</strong> Tráfico de entrada y salida</li>
+                                        <li><strong>Procesos:</strong> Número de procesos activos</li>
+                                        <li><strong>Uptime:</strong> Tiempo que lleva funcionando el sistema</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <h5>Configuración de Umbrales:</h5>
+                            <p>Puedes configurar umbrales personalizados para cada métrica:</p>
+                            <ul>
+                                <li><strong>CPU:</strong> Por defecto alerta cuando > 80% por 5 minutos</li>
+                                <li><strong>Memoria:</strong> Por defecto alerta cuando > 85% por 3 minutos</li>
+                                <li><strong>Disco:</strong> Por defecto alerta cuando > 90% por 1 minuto</li>
+                            </ul>
+
+                            <div class="alert alert-warning">
+                                <strong>Nota:</strong> Los umbrales muy bajos pueden generar demasiadas alertas. 
+                                Ajusta los valores según las características de tu sistema.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Alertas -->
+                <section id="alerts" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-bell"></i> Sistema de Alertas</h3>
+                        </div>
+                        <div class="card-body">
+                            <h5>Tipos de Alertas:</h5>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="alert alert-danger">
+                                        <strong>Críticas</strong><br>
+                                        Requieren atención inmediata
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="alert alert-warning">
+                                        <strong>Advertencias</strong><br>
+                                        Situaciones que requieren atención
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="alert alert-info">
+                                        <strong>Informativas</strong><br>
+                                        Cambios en el estado del sistema
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h5>Gestión de Alertas:</h5>
+                            <ul>
+                                <li><strong>Silenciar:</strong> Pausa temporalmente una alerta específica</li>
+                                <li><strong>Silenciar todas:</strong> Pausa todas las alertas activas</li>
+                                <li><strong>Probar alerta:</strong> Envía una alerta de prueba para verificar funcionamiento</li>
+                            </ul>
+
+                            <h5>Configuración de Intervalos:</h5>
+                            <ul>
+                                <li><strong>Evaluación:</strong> Cada cuánto se evalúan las métricas</li>
+                                <li><strong>Timeout:</strong> Tiempo máximo para resolver una alerta</li>
+                                <li><strong>Reenvío:</strong> Cada cuánto se reenvían alertas no resueltas</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Solución de Problemas -->
+                <section id="troubleshooting" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-wrench"></i> Solución de Problemas</h3>
+                        </div>
+                        <div class="card-body">
+                            <h5>Problemas Comunes:</h5>
+                            
+                            <div class="accordion" id="troubleshootingAccordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#emailIssues">
+                                            No llegan los emails de alerta
+                                        </button>
+                                    </h2>
+                                    <div id="emailIssues" class="accordion-collapse collapse show">
+                                        <div class="accordion-body">
+                                            <strong>Posibles causas y soluciones:</strong>
+                                            <ul>
+                                                <li>Verificar que el servicio SMTP esté activo en el dashboard</li>
+                                                <li>Comprobar credenciales de email (usar contraseña de aplicación para Gmail)</li>
+                                                <li>Verificar que el email esté en la lista de destinatarios y activo</li>
+                                                <li>Revisar la carpeta de spam/correo no deseado</li>
+                                                <li>Probar envío manual desde la sección SMTP</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#serviceIssues">
+                                            Los servicios no inician
+                                        </button>
+                                    </h2>
+                                    <div id="serviceIssues" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <strong>Verificaciones:</strong>
+                                            <ul>
+                                                <li>Comprobar que los puertos no estén ocupados (9090, 3000, 9093, 9100)</li>
+                                                <li>Verificar permisos de ejecución</li>
+                                                <li>Reinstalar Node Exporter si es necesario</li>
+                                                <li>Revisar logs en el dashboard de monitoreo</li>
+                                                <li>Reiniciar servicios desde el dashboard</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cloudIssues">
+                                            Problemas con proveedores cloud
+                                        </button>
+                                    </h2>
+                                    <div id="cloudIssues" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <strong>Verificaciones comunes:</strong>
+                                            <ul>
+                                                <li>Verificar que las credenciales sean correctas y estén activas</li>
+                                                <li>Comprobar permisos de las cuentas de servicio</li>
+                                                <li>Verificar conectividad a internet</li>
+                                                <li>Revisar límites de API de los proveedores</li>
+                                                <li>Usar "Probar Conexión" para diagnóstico</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- API Reference -->
+                <section id="api" class="mb-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-code"></i> API Reference</h3>
+                        </div>
+                        <div class="card-body">
+                            <p>OptiMon expone una API REST para integración con otros sistemas:</p>
+                            
+                            <h5>Endpoints Principales:</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Endpoint</th>
+                                            <th>Método</th>
+                                            <th>Descripción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><code>/api/status</code></td>
+                                            <td>GET</td>
+                                            <td>Estado general del sistema</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>/api/emails</code></td>
+                                            <td>GET/POST/DELETE</td>
+                                            <td>Gestión de emails de alerta</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>/api/smtp</code></td>
+                                            <td>GET/POST</td>
+                                            <td>Configuración del servidor SMTP</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>/api/cloud/{provider}</code></td>
+                                            <td>GET/POST</td>
+                                            <td>Configuración de proveedores cloud</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>/api/monitoring/status</code></td>
+                                            <td>GET</td>
+                                            <td>Estado de servicios de monitoreo</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>/api/monitoring/alerts</code></td>
+                                            <td>GET</td>
+                                            <td>Alertas activas del sistema</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h5>Ejemplo de uso:</h5>
+                            <pre><code># Obtener estado del sistema
+curl http://localhost:5000/api/status
+
+# Agregar un email
+curl -X POST http://localhost:5000/api/emails \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@empresa.com", "is_default": true}'</code></pre>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Smooth scrolling para enlaces internos
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+                
+                // Actualizar enlace activo
+                document.querySelectorAll('.list-group-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                this.classList.add('active');
+            }
+        });
+    });
+
+    // Detectar sección actual mientras se hace scroll
+    window.addEventListener('scroll', function() {
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.list-group-item[href^="#"]');
+        
+        let current = '';
+        sections.forEach(section => {
+            const sectionTop = section.offsetTop;
+            const sectionHeight = section.clientHeight;
+            if (window.pageYOffset >= sectionTop - 100) {
+                current = section.getAttribute('id');
+            }
+        });
+
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === '#' + current) {
+                link.classList.add('active');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

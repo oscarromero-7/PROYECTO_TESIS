@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OptiMon Dashboard{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .navbar-brand {
+            font-weight: bold;
+            color: #007bff !important;
+        }
+        .status-card {
+            transition: transform 0.2s;
+        }
+        .status-card:hover {
+            transform: translateY(-2px);
+        }
+        .status-online {
+            border-left: 4px solid #28a745;
+        }
+        .status-offline {
+            border-left: 4px solid #dc3545;
+        }
+        .status-warning {
+            border-left: 4px solid #ffc107;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+        .nav-link.active {
+            background-color: #007bff;
+            color: white !important;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .alert-success {
+            border-left: 4px solid #28a745;
+        }
+        .alert-danger {
+            border-left: 4px solid #dc3545;
+        }
+        .alert-warning {
+            border-left: 4px solid #ffc107;
+        }
+        .alert-info {
+            border-left: 4px solid #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="fas fa-chart-line"></i> OptiMon Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="#" onclick="refreshStatus()">
+                    <i class="fas fa-sync-alt"></i> Actualizar
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <div class="nav flex-column nav-pills p-3">
+                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" 
+                       href="{{ url_for('dashboard') }}">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a>
+                    <a class="nav-link {% if request.endpoint == 'emails_management' %}active{% endif %}" 
+                       href="{{ url_for('emails_management') }}">
+                        <i class="fas fa-envelope"></i> Emails
+                    </a>
+                    <a class="nav-link {% if request.endpoint == 'smtp_configuration' %}active{% endif %}" 
+                       href="{{ url_for('smtp_configuration') }}">
+                        <i class="fas fa-cog"></i> SMTP
+                    </a>
+                    <a class="nav-link {% if request.endpoint == 'cloud_configuration' %}active{% endif %}" 
+                       href="{{ url_for('cloud_configuration') }}">
+                        <i class="fas fa-cloud"></i> Cloud
+                    </a>
+                    <a class="nav-link {% if request.endpoint == 'monitoring_configuration' %}active{% endif %}" 
+                       href="{{ url_for('monitoring_configuration') }}">
+                        <i class="fas fa-desktop"></i> Monitoreo
+                    </a>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 main-content">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.main-content');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        function refreshStatus() {
+            fetch('/api/system-status')
+                .then(response => response.json())
+                .then(data => {
+                    location.reload();
+                })
+                .catch(error => {
+                    showAlert('Error actualizando estado', 'danger');
+                });
+        }
+
+        // Auto-refresh cada 30 segundos
+        setInterval(refreshStatus, 30000);
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
