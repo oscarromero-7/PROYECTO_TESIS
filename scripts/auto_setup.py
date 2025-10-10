@@ -531,7 +531,11 @@ class IntelligentAutoSetup:
     def _auto_install_single(self, instance):
         """Instala Node Exporter en una instancia con deteccion automatica"""
         try:
-            # Intentar multiples metodos de conexion
+            # Para servidores físicos, usar instalación inteligente
+            if instance['provider'] == 'physical':
+                return self._smart_install_physical(instance)
+            
+            # Intentar multiples metodos de conexion para cloud
             connection_methods = self._get_connection_methods(instance)
             
             for method in connection_methods:
@@ -542,6 +546,35 @@ class IntelligentAutoSetup:
             
         except Exception as e:
             print(f"    Error en {instance['name']}: {e}")
+            return False
+    
+    def _smart_install_physical(self, instance):
+        """Instalación inteligente para servidores físicos"""
+        ip = instance['ip']
+        name = instance['name']
+        
+        print(f"  🔍 Analizando servidor físico {name} ({ip})...")
+        
+        # Paso 1: Detectar SO y arquitectura
+        os_info = self._detect_os_and_arch(ip)
+        if not os_info:
+            print(f"    ❌ No se pudo detectar el SO de {ip}")
+            return False
+        
+        print(f"    📋 SO detectado: {os_info['os']} {os_info['arch']}")
+        
+        # Paso 2: Verificar si Node Exporter ya está instalado
+        if self._check_node_exporter_running(ip):
+            print(f"    ✅ Node Exporter ya está ejecutándose en {ip}:9100")
+            return True
+        
+        # Paso 3: Instalar Node Exporter según el SO
+        if os_info['os'] == 'linux':
+            return self._install_node_exporter_linux(ip, instance, os_info)
+        elif os_info['os'] == 'windows':
+            return self._install_node_exporter_windows(ip, instance, os_info)
+        else:
+            print(f"    ❌ SO no soportado: {os_info['os']}")
             return False
     
     def _get_connection_methods(self, instance):
@@ -1210,6 +1243,252 @@ echo "[OK] Node Exporter instalado y activo"
                 
         except Exception as e:
             print(f"   ❌ Error iniciando exportador: {e}")
+            return False
+
+    def _detect_os_and_arch(self, ip):
+        """Detecta sistema operativo y arquitectura de un servidor remoto"""
+        try:
+            import socket
+            
+            # Intentar conexión a puerto común de Windows (WinRM/RDP)
+            windows_ports = [3389, 5985, 5986]  # RDP, HTTP-WinRM, HTTPS-WinRM
+            linux_ports = [22]  # SSH
+            
+            is_windows = False
+            is_linux = False
+            
+            # Verificar puertos Windows
+            for port in windows_ports:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(2)
+                result = sock.connect_ex((ip, port))
+                sock.close()
+                if result == 0:
+                    is_windows = True
+                    break
+            
+            # Verificar puerto SSH (Linux)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            result = sock.connect_ex((ip, 22))
+            sock.close()
+            if result == 0:
+                is_linux = True
+            
+            # Si SSH está disponible, intentar detectar vía SSH
+            if is_linux:
+                os_info = self._detect_via_ssh(ip)
+                if os_info:
+                    return os_info
+            
+            # Fallback: asumir basado en puertos abiertos
+            if is_windows:
+                return {'os': 'windows', 'arch': 'amd64', 'version': 'unknown'}
+            elif is_linux:
+                return {'os': 'linux', 'arch': 'amd64', 'version': 'unknown'}
+            
+            return None
+            
+        except Exception as e:
+            print(f"    [WARN] Error detectando SO para {ip}: {e}")
+            return None
+    
+    def _detect_via_ssh(self, ip):
+        """Detecta SO via SSH usando comandos básicos"""
+        ssh_users = ['admin', 'ubuntu', 'centos', 'root', 'ec2-user', 'azureuser']
+        ssh_keys = self.ssh_manager.find_ssh_keys_system_wide()
+        
+        for user in ssh_users:
+            for key_path in ssh_keys[:3]:  # Solo probar primeras 3 claves
+                try:
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    
+                    ssh.connect(
+                        hostname=ip,
+                        username=user,
+                        key_filename=str(key_path),
+                        timeout=10,
+                        auth_timeout=10
+                    )
+                    
+                    # Detectar SO y arquitectura
+                    stdin, stdout, stderr = ssh.exec_command('uname -s && uname -m')
+                    output = stdout.read().decode().strip().split('\n')
+                    
+                    if len(output) >= 2:
+                        os_name = output[0].lower()
+                        arch = output[1]
+                        
+                        # Normalizar arquitectura
+                        if arch in ['x86_64', 'amd64']:
+                            arch = 'amd64'
+                        elif arch in ['aarch64', 'arm64']:
+                            arch = 'arm64'
+                        elif arch.startswith('arm'):
+                            arch = 'armv7'
+                        
+                        ssh.close()
+                        return {
+                            'os': 'linux' if os_name == 'linux' else os_name,
+                            'arch': arch,
+                            'version': 'detected',
+                            'ssh_user': user,
+                            'ssh_key': str(key_path)
+                        }
+                    
+                    ssh.close()
+                    
+                except Exception:
+                    continue
+        
+        return None
+    
+    def _check_node_exporter_running(self, ip):
+        """Verifica si Node Exporter ya está ejecutándose"""
+        try:
+            import requests
+            response = requests.get(f"http://{ip}:9100/metrics", timeout=5)
+            return response.status_code == 200
+        except:
+            return False
+    
+    def _install_node_exporter_linux(self, ip, instance, os_info):
+        """Instala Node Exporter en Linux via SSH"""
+        try:
+            ssh_user = os_info.get('ssh_user', 'admin')
+            ssh_key = os_info.get('ssh_key')
+            
+            if not ssh_key:
+                print(f"    ❌ No se encontró clave SSH válida para {ip}")
+                return False
+            
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            ssh.connect(
+                hostname=ip,
+                username=ssh_user,
+                key_filename=ssh_key,
+                timeout=30
+            )
+            
+            print(f"    📦 Instalando Node Exporter en Linux...")
+            
+            # Script de instalación completo
+            install_script = '''#!/bin/bash
+set -e
+
+# Variables
+NODE_EXPORTER_VERSION="1.6.1"
+ARCH="amd64"
+
+# Detectar arquitectura
+case $(uname -m) in
+    x86_64) ARCH="amd64" ;;
+    aarch64|arm64) ARCH="arm64" ;;
+    armv7l) ARCH="armv7" ;;
+esac
+
+echo "Instalando Node Exporter $NODE_EXPORTER_VERSION para $ARCH..."
+
+# Verificar si ya está instalado
+if systemctl is-active --quiet node_exporter 2>/dev/null; then
+    echo "Node Exporter ya está ejecutándose"
+    exit 0
+fi
+
+# Crear usuario
+sudo useradd --no-create-home --shell /bin/false node_exporter 2>/dev/null || true
+
+# Crear directorio
+sudo mkdir -p /opt/node_exporter
+sudo chown node_exporter:node_exporter /opt/node_exporter
+
+# Descargar e instalar
+cd /tmp
+curl -LO "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-${ARCH}.tar.gz"
+tar xvf "node_exporter-${NODE_EXPORTER_VERSION}.linux-${ARCH}.tar.gz"
+sudo cp "node_exporter-${NODE_EXPORTER_VERSION}.linux-${ARCH}/node_exporter" /opt/node_exporter/
+sudo chown node_exporter:node_exporter /opt/node_exporter/node_exporter
+sudo chmod +x /opt/node_exporter/node_exporter
+
+# Crear servicio
+sudo tee /etc/systemd/system/node_exporter.service > /dev/null << EOF
+[Unit]
+Description=Node Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+Type=simple
+ExecStart=/opt/node_exporter/node_exporter --web.listen-address=:9100
+SyslogIdentifier=node_exporter
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Configurar firewall
+sudo ufw allow 9100/tcp 2>/dev/null || true
+sudo firewall-cmd --permanent --add-port=9100/tcp 2>/dev/null || true
+sudo firewall-cmd --reload 2>/dev/null || true
+
+# Iniciar servicio
+sudo systemctl daemon-reload
+sudo systemctl enable node_exporter
+sudo systemctl start node_exporter
+
+# Verificar
+sleep 2
+if systemctl is-active --quiet node_exporter; then
+    echo "✅ Node Exporter instalado correctamente"
+    exit 0
+else
+    echo "❌ Error en la instalación"
+    exit 1
+fi'''
+            
+            # Ejecutar script de instalación
+            stdin, stdout, stderr = ssh.exec_command(f'bash -s', timeout=120)
+            stdin.write(install_script)
+            stdin.channel.shutdown_write()
+            
+            # Esperar resultados
+            exit_status = stdout.channel.recv_exit_status()
+            output = stdout.read().decode()
+            error = stderr.read().decode()
+            
+            ssh.close()
+            
+            if exit_status == 0:
+                print(f"    ✅ Node Exporter instalado exitosamente en {ip}")
+                return True
+            else:
+                print(f"    ❌ Error instalando en {ip}: {error}")
+                return False
+                
+        except Exception as e:
+            print(f"    ❌ Error SSH instalando en {ip}: {e}")
+            return False
+    
+    def _install_node_exporter_windows(self, ip, instance, os_info):
+        """Instala Node Exporter en Windows via WinRM/PowerShell"""
+        try:
+            print(f"    💡 Para Windows ({ip}): Instalación manual requerida")
+            print(f"       1. Descarga el script: scripts/physical/install_node_exporter.ps1")
+            print(f"       2. Ejecuta en PowerShell como Administrador en {ip}")
+            print(f"       3. El sistema detectará automáticamente cuando esté disponible")
+            
+            # Por ahora, retornar False para instalación manual
+            # En futuras versiones se puede implementar WinRM
+            return False
+            
+        except Exception as e:
+            print(f"    ❌ Error preparando instalación Windows: {e}")
             return False
 
 if __name__ == "__main__":

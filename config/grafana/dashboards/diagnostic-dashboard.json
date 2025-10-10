@@ -42,7 +42,10 @@
   ],
   "panels": [
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cf0in65f5p3pcd"
+      },
       "description": "Resumen de todas las instancias detectadas y su estado actual",
       "fieldConfig": {
         "defaults": {
@@ -180,7 +183,10 @@
       "type": "table"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cf0in65f5p3pcd"
+      },
       "description": "Estadísticas por proveedor de cloud",
       "fieldConfig": {
         "defaults": {
@@ -210,11 +216,15 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "values": ["value"]
+          "values": [
+            "value"
+          ]
         },
         "pieType": "pie",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -234,7 +244,10 @@
       "type": "piechart"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cf0in65f5p3pcd"
+      },
       "description": "Instancias funcionando vs total configurado",
       "fieldConfig": {
         "defaults": {
@@ -264,11 +277,15 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "values": ["value"]
+          "values": [
+            "value"
+          ]
         },
         "pieType": "donut",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -294,7 +311,10 @@
       "type": "piechart"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cf0in65f5p3pcd"
+      },
       "description": "Historial de disponibilidad de instancias",
       "fieldConfig": {
         "defaults": {
@@ -374,7 +394,9 @@
       "id": 4,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "displayMode": "table",
           "placement": "right"
         },
@@ -407,7 +429,10 @@
       "type": "row"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cf0in65f5p3pcd"
+      },
       "description": "Información detallada de errores y problemas de conectividad",
       "fieldConfig": {
         "defaults": {
@@ -506,7 +531,11 @@
   ],
   "schemaVersion": 27,
   "style": "dark",
-  "tags": ["diagnostic", "monitoring", "troubleshooting"],
+  "tags": [
+    "diagnostic",
+    "monitoring",
+    "troubleshooting"
+  ],
   "templating": {
     "list": []
   },

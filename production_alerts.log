@@ -1,0 +1,28 @@
+
+================================================================================
+ALERTA DE PRODUCCIÓN - 2025-10-09 07:29:03
+================================================================================
+ALERTA: TestAlert
+SERVIDOR: Test-Server
+INSTANCIA: test.example.com:9100
+TIPO: AWS
+SEVERIDAD: CRITICAL
+RESUMEN: Esta es una alerta de prueba
+DESCRIPCIÓN: Prueba del sistema de webhooks de OptiMon
+ESTADO: firing
+----------------------------------------
+
+
+================================================================================
+ALERTA DE PRODUCCIÓN - 2025-10-09 07:34:42
+================================================================================
+ALERTA: HighCPUUsage_AWS
+SERVIDOR: AWS-EC2-Test
+INSTANCIA: 54.83.90.114:9100
+TIPO: AWS
+SEVERIDAD: CRITICAL
+RESUMEN: PRUEBA: Alto uso de CPU en servidor AWS
+DESCRIPCIÓN: Esta es una prueba del sistema de alertas criticas de produccion
+ESTADO: firing
+----------------------------------------
+

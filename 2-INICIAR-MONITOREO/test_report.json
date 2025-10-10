@@ -1,0 +1,210 @@
+{
+  "timestamp": "2025-10-09 13:00:36",
+  "total_tests": 40,
+  "passed": 34,
+  "failed": 6,
+  "success_rate": 0.85,
+  "results": [
+    {
+      "test": "Python >= 3.8",
+      "success": true,
+      "details": "Versión actual: 3.13.1"
+    },
+    {
+      "test": "Módulo flask",
+      "success": true,
+      "details": "Disponible"
+    },
+    {
+      "test": "Módulo requests",
+      "success": true,
+      "details": "Disponible"
+    },
+    {
+      "test": "Módulo psutil",
+      "success": true,
+      "details": "Disponible"
+    },
+    {
+      "test": "Módulo pathlib",
+      "success": true,
+      "details": "Disponible"
+    },
+    {
+      "test": "Memoria suficiente",
+      "success": false,
+      "details": "Disponible: 473MB"
+    },
+    {
+      "test": "Espacio en disco",
+      "success": true,
+      "details": "Disponible: 59GB"
+    },
+    {
+      "test": "Archivo optimon_dashboard.py",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Archivo optimon_smtp_service.py",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Archivo docker-compose.yml",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Archivo config/alertmanager/alertmanager.yml",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Archivo config/prometheus/prometheus.yml",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Archivo templates/base.html",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Archivo templates/dashboard.html",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Archivo templates/monitoring.html",
+      "success": true,
+      "details": "Encontrado"
+    },
+    {
+      "test": "Docker Compose disponible",
+      "success": true,
+      "details": "Docker Compose version v2.37.1-desktop.1"
+    },
+    {
+      "test": "Prometheus (puerto 9090)",
+      "success": true,
+      "details": "Ejecutándose"
+    },
+    {
+      "test": "Grafana (puerto 3000)",
+      "success": true,
+      "details": "Ejecutándose"
+    },
+    {
+      "test": "AlertManager (puerto 9093)",
+      "success": true,
+      "details": "Ejecutándose"
+    },
+    {
+      "test": "Servicio SMTP (puerto 5555)",
+      "success": true,
+      "details": "Activo"
+    },
+    {
+      "test": "Health check SMTP",
+      "success": true,
+      "details": "Status: 200"
+    },
+    {
+      "test": "Configuración de emails",
+      "success": false,
+      "details": "No configurado"
+    },
+    {
+      "test": "Dashboard (puerto 8080)",
+      "success": false,
+      "details": "No disponible"
+    },
+    {
+      "test": "Lectura CPU",
+      "success": true,
+      "details": "37.0%"
+    },
+    {
+      "test": "Lectura Memoria",
+      "success": true,
+      "details": "88.0%"
+    },
+    {
+      "test": "Lectura Disco",
+      "success": true,
+      "details": "75.0%"
+    },
+    {
+      "test": "Métricas válidas",
+      "success": true,
+      "details": "Valores en rango esperado"
+    },
+    {
+      "test": "Configuración de alertas",
+      "success": true,
+      "details": "Archivo encontrado"
+    },
+    {
+      "test": "APIs del dashboard",
+      "success": false,
+      "details": "Dashboard no disponible"
+    },
+    {
+      "test": "Función instalación Node Exporter",
+      "success": true,
+      "details": "Implementada"
+    },
+    {
+      "test": "Lógica de descarga",
+      "success": true,
+      "details": "Implementada"
+    },
+    {
+      "test": "Lógica de extracción",
+      "success": true,
+      "details": "Implementada"
+    },
+    {
+      "test": "Creación de directorios",
+      "success": true,
+      "details": "Permisos correctos"
+    },
+    {
+      "test": "Configuración Prometheus",
+      "success": true,
+      "details": "YAML válido"
+    },
+    {
+      "test": "Configuración AlertManager",
+      "success": true,
+      "details": "YAML válido"
+    },
+    {
+      "test": "Configuración Grafana Datasources",
+      "success": false,
+      "details": "Archivo no encontrado"
+    },
+    {
+      "test": "Configuración Docker Compose",
+      "success": true,
+      "details": "YAML válido"
+    },
+    {
+      "test": "Script start_optimon_complete.bat",
+      "success": true,
+      "details": "Contiene comandos válidos"
+    },
+    {
+      "test": "Script start_smtp_simple.bat",
+      "success": true,
+      "details": "Contiene comandos válidos"
+    },
+    {
+      "test": "Script setup.bat",
+      "success": false,
+      "details": "No encontrado"
+    }
+  ],
+  "package_ready": true
+}

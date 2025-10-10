@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-10-09 12:45:40",
+  "services": {
+    "docker": {
+      "status": false,
+      "running": false
+    },
+    "smtp": {
+      "status": true,
+      "running": true
+    },
+    "dashboard": {
+      "status": false,
+      "running": false
+    }
+  },
+  "ports": {
+    "prometheus": true,
+    "grafana": true,
+    "alertmanager": true,
+    "smtp": true,
+    "dashboard": false
+  }
+}

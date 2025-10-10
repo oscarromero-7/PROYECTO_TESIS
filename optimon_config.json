@@ -1,0 +1,13 @@
+{
+  "verification_interval_minutes": 5,
+  "auto_restart_services": true,
+  "max_retry_attempts": 3,
+  "notification_webhook": "",
+  "enabled_checks": {
+    "prometheus_health": true,
+    "grafana_health": true,
+    "dashboard_validation": true,
+    "datasource_correction": true,
+    "auto_import": true
+  }
+}

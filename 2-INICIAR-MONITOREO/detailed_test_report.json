@@ -1,0 +1,293 @@
+{
+  "timestamp": "2025-10-09 13:01:24",
+  "overall_stats": {
+    "total_tests": 46,
+    "passed_tests": 42,
+    "failed_tests": 4,
+    "success_percentage": 91.30434782608695,
+    "quality_rating": "EXCELENTE"
+  },
+  "category_stats": {
+    "docker": {
+      "passed": 8,
+      "total": 8,
+      "percentage": 100.0
+    },
+    "smtp": {
+      "passed": 5,
+      "total": 6,
+      "percentage": 83.33333333333334
+    },
+    "dashboard": {
+      "passed": 4,
+      "total": 5,
+      "percentage": 80.0
+    },
+    "monitoring": {
+      "passed": 9,
+      "total": 9,
+      "percentage": 100.0
+    },
+    "installation": {
+      "passed": 6,
+      "total": 7,
+      "percentage": 85.71428571428571
+    },
+    "automation": {
+      "passed": 10,
+      "total": 11,
+      "percentage": 90.9090909090909
+    }
+  },
+  "services_status": {
+    "prometheus": true,
+    "grafana": true,
+    "alertmanager": true,
+    "smtp": true,
+    "dashboard": false
+  },
+  "detailed_results": {
+    "docker": [
+      {
+        "test": "Docker disponible",
+        "status": true,
+        "details": "Docker version 28.2.2, build e6534b4"
+      },
+      {
+        "test": "Docker Compose disponible",
+        "status": true,
+        "details": "Docker Compose version v2.37.1-desktop.1"
+      },
+      {
+        "test": "Archivo docker-compose.yml",
+        "status": true,
+        "details": "Encontrado"
+      },
+      {
+        "test": "Servicios en docker-compose",
+        "status": true,
+        "details": "Todos presentes"
+      },
+      {
+        "test": "Inicio servicios Docker",
+        "status": true,
+        "details": "Iniciados correctamente"
+      },
+      {
+        "test": "Prometheus puerto 9090",
+        "status": true,
+        "details": "Disponible"
+      },
+      {
+        "test": "Grafana puerto 3000",
+        "status": true,
+        "details": "Disponible"
+      },
+      {
+        "test": "AlertManager puerto 9093",
+        "status": true,
+        "details": "Disponible"
+      }
+    ],
+    "smtp": [
+      {
+        "test": "Archivo SMTP service",
+        "status": true,
+        "details": "Encontrado"
+      },
+      {
+        "test": "Librerías SMTP Python",
+        "status": true,
+        "details": "Disponibles"
+      },
+      {
+        "test": "Inicio proceso SMTP",
+        "status": true,
+        "details": "Proceso activo"
+      },
+      {
+        "test": "SMTP puerto 5555",
+        "status": true,
+        "details": "Disponible"
+      },
+      {
+        "test": "SMTP health check",
+        "status": true,
+        "details": "HTTP 200"
+      },
+      {
+        "test": "Configuración emails",
+        "status": false,
+        "details": "Archivo no encontrado"
+      }
+    ],
+    "dashboard": [
+      {
+        "test": "Archivo dashboard",
+        "status": true,
+        "details": "Encontrado"
+      },
+      {
+        "test": "Flask disponible",
+        "status": true,
+        "details": "Versión 3.1.2"
+      },
+      {
+        "test": "Directorio templates",
+        "status": true,
+        "details": "Encontrado"
+      },
+      {
+        "test": "Templates requeridos",
+        "status": true,
+        "details": "Todos presentes"
+      },
+      {
+        "test": "Inicio proceso dashboard",
+        "status": false,
+        "details": "Proceso se cerró"
+      }
+    ],
+    "monitoring": [
+      {
+        "test": "psutil disponible",
+        "status": true,
+        "details": "Versión 7.1.0"
+      },
+      {
+        "test": "Métricas CPU",
+        "status": true,
+        "details": "34.6%"
+      },
+      {
+        "test": "Métricas Memoria",
+        "status": true,
+        "details": "91.9%"
+      },
+      {
+        "test": "Métricas Disco",
+        "status": true,
+        "details": "75.0%"
+      },
+      {
+        "test": "Config Prometheus",
+        "status": true,
+        "details": "Archivo encontrado"
+      },
+      {
+        "test": "Scrape configs",
+        "status": true,
+        "details": "Configurado"
+      },
+      {
+        "test": "API Prometheus targets",
+        "status": true,
+        "details": "5 targets"
+      },
+      {
+        "test": "Config AlertManager",
+        "status": true,
+        "details": "Archivo encontrado"
+      },
+      {
+        "test": "AlertManager webhooks",
+        "status": true,
+        "details": "Configurado"
+      }
+    ],
+    "installation": [
+      {
+        "test": "Instalación Node Exporter",
+        "status": true,
+        "details": "Implementado"
+      },
+      {
+        "test": "Descarga de archivos",
+        "status": true,
+        "details": "Implementado"
+      },
+      {
+        "test": "Extracción de archivos",
+        "status": true,
+        "details": "Implementado"
+      },
+      {
+        "test": "API instalación",
+        "status": true,
+        "details": "Implementado"
+      },
+      {
+        "test": "Permisos creación directorios",
+        "status": true,
+        "details": "Permisos correctos"
+      },
+      {
+        "test": "Librerías descarga",
+        "status": true,
+        "details": "urllib y zipfile disponibles"
+      },
+      {
+        "test": "API instalación disponible",
+        "status": false,
+        "details": "Dashboard no disponible"
+      }
+    ],
+    "automation": [
+      {
+        "test": "Script inicio automático",
+        "status": true,
+        "details": "Archivo encontrado"
+      },
+      {
+        "test": "Script inicio automático contenido",
+        "status": true,
+        "details": "1401 caracteres"
+      },
+      {
+        "test": "Script parada",
+        "status": true,
+        "details": "Archivo encontrado"
+      },
+      {
+        "test": "Script parada contenido",
+        "status": true,
+        "details": "908 caracteres"
+      },
+      {
+        "test": "Iniciador automático Python",
+        "status": true,
+        "details": "Archivo encontrado"
+      },
+      {
+        "test": "Iniciador automático Python contenido",
+        "status": true,
+        "details": "12172 caracteres"
+      },
+      {
+        "test": "Verificador estado",
+        "status": true,
+        "details": "Archivo encontrado"
+      },
+      {
+        "test": "Verificador estado contenido",
+        "status": true,
+        "details": "2030 caracteres"
+      },
+      {
+        "test": "Documentación principal",
+        "status": true,
+        "details": "Encontrado"
+      },
+      {
+        "test": "Guía inicio rápido",
+        "status": false,
+        "details": "No encontrado"
+      },
+      {
+        "test": "Funciones iniciador automático",
+        "status": true,
+        "details": "Todas presentes"
+      }
+    ]
+  }
+}
