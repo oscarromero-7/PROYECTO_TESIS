@@ -1,0 +1,29 @@
+groups:
+- name: optimon_alerts
+  rules:
+  - alert: HighCPUUsage
+    expr: cpu_usage > 80
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage detected"
+      description: "CPU usage is above 80% for more than 2 minutes"
+
+  - alert: HighMemoryUsage
+    expr: memory_usage > 85
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage detected"
+      description: "Memory usage is above 85% for more than 2 minutes"
+
+  - alert: LowDiskSpace
+    expr: disk_usage > 90
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Low disk space"
+      description: "Disk usage is above 90%"

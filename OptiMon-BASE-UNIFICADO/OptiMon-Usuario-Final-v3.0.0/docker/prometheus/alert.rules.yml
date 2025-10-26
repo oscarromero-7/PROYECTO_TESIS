@@ -1,0 +1,90 @@
+groups:
+  - name: optimon_alerts
+    rules:
+      # Local computer alerts
+      - alert: LocalCpuHigh
+        expr: 100 - (avg(irate(windows_cpu_time_total{mode="idle",instance="local-computer"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+          instance: "local-computer"
+          alertname: "CPU Alto Local"
+        annotations:
+          summary: "CPU usage is high on local computer"
+          description: "CPU usage is above 80% for more than 2 minutes"
+
+      - alert: LocalMemoryHigh
+        expr: (1 - (windows_os_physical_memory_free_bytes{instance="local-computer"} / windows_os_total_visible_memory_bytes{instance="local-computer"})) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+          instance: "local-computer"
+          alertname: "Memoria Alta Local"
+        annotations:
+          summary: "Memory usage is high on local computer"
+          description: "Memory usage is above 85% for more than 2 minutes"
+
+      - alert: LocalDiskHigh
+        expr: 100 - (windows_logical_disk_free_bytes{instance="local-computer"} / windows_logical_disk_size_bytes{instance="local-computer"} * 100) > 90
+        for: 5m
+        labels:
+          severity: critical
+          instance: "local-computer"
+          alertname: "Disco Lleno Local"
+        annotations:
+          summary: "Disk usage is critically high on local computer"
+          description: "Disk usage is above 90% for more than 5 minutes"
+
+      # Service availability alerts
+      - alert: WindowsExporterDown
+        expr: up{job="local_windows"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          instance: "local-computer"
+          alertname: "Windows Exporter Inactivo"
+        annotations:
+          summary: "Windows Exporter is not responding"
+          description: "Windows Exporter has been down for more than 1 minute"
+
+      # Cloud instance alerts (generic)
+      - alert: CloudInstanceDown
+        expr: up{provider=~"aws|azure"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          alertname: "Instancia Cloud Inactiva"
+        annotations:
+          summary: "Cloud instance is down"
+          description: "Cloud instance {{ $labels.instance }} has been down for more than 2 minutes"
+
+      - alert: CloudCpuHigh
+        expr: 100 - (avg by(instance)(irate(node_cpu_seconds_total{mode="idle",provider=~"aws|azure"}[5m])) * 100) > 85
+        for: 3m
+        labels:
+          severity: warning
+          alertname: "CPU Alto Cloud"
+        annotations:
+          summary: "High CPU usage on cloud instance"
+          description: "CPU usage is above 85% on {{ $labels.instance }} for more than 3 minutes"
+
+      - alert: CloudMemoryHigh
+        expr: (1 - (node_memory_MemAvailable_bytes{provider=~"aws|azure"} / node_memory_MemTotal_bytes{provider=~"aws|azure"})) * 100 > 85
+        for: 3m
+        labels:
+          severity: warning
+          alertname: "Memoria Alta Cloud"
+        annotations:
+          summary: "High memory usage on cloud instance"
+          description: "Memory usage is above 85% on {{ $labels.instance }} for more than 3 minutes"
+
+      # Physical server alerts
+      - alert: PhysicalServerDown
+        expr: up{provider="physical"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          alertname: "Servidor Físico Inactivo"
+        annotations:
+          summary: "Physical server is down"
+          description: "Physical server {{ $labels.instance }} has been down for more than 2 minutes"

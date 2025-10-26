@@ -1,0 +1,49 @@
+
+# 🚀 INICIO RÁPIDO - OptiMon v3.0.0
+
+## ⚡ Instalación en 10 segundos
+
+### OPCIÓN 1: SÚPER FÁCIL (Recomendado)
+1. **Doble clic en:**
+   ```
+   INSTALAR_FACIL.bat
+   ```
+2. **Confirmar UAC** cuando aparezca
+3. **¡Listo!** Todo se instala automáticamente
+
+### OPCIÓN 2: PowerShell
+```powershell
+.\INSTALAR_OPTIMON.ps1
+```
+
+### OPCIÓN 3: Batch tradicional
+```cmd
+INSTALAR_OPTIMON.bat
+```
+
+## 🎯 ¿Qué se abre automáticamente?
+
+- 🌐 **Portal OptiMon:** http://localhost:5000
+- 📊 **Grafana:** http://localhost:3000 (admin/admin)
+
+## 🚀 Primeros Pasos
+
+1. **Portal OptiMon**
+   - Configura credenciales Azure
+   - Genera infraestructura automáticamente
+
+2. **Grafana** 
+   - Ve métricas de tu PC en tiempo real
+   - Explora dashboards preconfigurados
+
+## ❓ ¿Problemas?
+
+- **UAC no aparece:** Ejecutar como administrador manualmente
+- **Docker no funciona:** Instalar Docker Desktop
+- **Puerto ocupado:** Reiniciar y ejecutar otra vez
+
+## 💡 Consejo
+
+**¡Solo hacer doble clic en INSTALAR_FACIL.bat y listo!**
+
+¡Disfruta OptiMon! 🎉

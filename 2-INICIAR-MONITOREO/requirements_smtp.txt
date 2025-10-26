@@ -1,8 +1,0 @@
-# Dependencias para el servicio SMTP OptiMon
-flask==2.3.3
-requests==2.31.0
-python-dotenv==1.0.0
-
-# smtplib está incluido en Python estándar
-# Dependencias opcionales para mejor desarrollo
-colorama==0.4.6

@@ -1,0 +1,50 @@
+# OptiMon Sistema Unificado - Dependencias Python
+# Versión 3.0.0-UNIFIED
+# Compatible con Python 3.11+ y Python 3.13
+
+# Framework web principal
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Cliente HTTP para APIs
+requests==2.31.0
+
+# Monitoreo del sistema
+psutil==5.9.5
+
+# Procesamiento YAML
+PyYAML==6.0.1
+
+# Fecha y tiempo
+python-dateutil==2.8.2
+
+# JSON y datos
+jsonschema==4.19.1
+
+# Variables de entorno
+python-dotenv==1.0.0
+
+# Extensiones de typing (para compatibilidad)
+typing-extensions>=4.7.1
+
+# SSH para conexiones remotas
+paramiko>=3.3.1
+
+# Cloud SDKs habilitados
+boto3>=1.28.62
+
+# ===== CLOUD PROVIDERS (OPCIONAL) =====
+# Descomenta las siguientes líneas para habilitar funcionalidades cloud
+
+# AWS SDK
+# boto3==1.28.62
+# botocore==1.31.62
+
+# Azure SDK (versiones compatibles con Python 3.13)
+# azure-mgmt-compute==30.0.0
+# azure-mgmt-network==25.0.0  
+# azure-identity==1.15.0
+
+# Google Cloud SDK (futuro)
+# google-cloud-compute==1.14.1
+# google-auth==2.23.3

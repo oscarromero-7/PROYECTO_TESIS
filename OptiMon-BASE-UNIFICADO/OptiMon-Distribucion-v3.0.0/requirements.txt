@@ -1,0 +1,28 @@
+# OptiMon Sistema Unificado - Dependencias Python
+# Versión 3.0.0-UNIFIED
+
+# Framework web principal
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Cliente HTTP para APIs
+requests==2.31.0
+
+# Monitoreo del sistema
+psutil==5.9.5
+
+# Procesamiento YAML
+PyYAML==6.0.1
+
+# Fecha y tiempo
+python-dateutil==2.8.2
+
+# JSON y datos
+jsonschema==4.19.1
+
+# Variables de entorno (opcional)
+python-dotenv==1.0.0
+
+# Utilidades adicionales
+pathlib2==2.3.7
+typing-extensions==4.7.1

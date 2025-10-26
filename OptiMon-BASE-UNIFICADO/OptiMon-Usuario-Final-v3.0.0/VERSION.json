@@ -1,0 +1,19 @@
+{
+    "name": "OptiMon Sistema Unificado",
+    "version": "3.0.0-UNIFIED",
+    "build_date": "2025-10-25T15:55:31.859344",
+    "description": "Sistema completo de monitoreo con integración Azure",
+    "components": {
+        "flask_app": "Portal web principal",
+        "prometheus": "Métricas y monitoreo",
+        "grafana": "Dashboards y visualización",
+        "alertmanager": "Sistema de alertas",
+        "windows_exporter": "Monitoreo local Windows"
+    },
+    "urls": {
+        "portal": "http://localhost:5000",
+        "grafana": "http://localhost:3000",
+        "prometheus": "http://localhost:9090",
+        "alertmanager": "http://localhost:9093"
+    }
+}

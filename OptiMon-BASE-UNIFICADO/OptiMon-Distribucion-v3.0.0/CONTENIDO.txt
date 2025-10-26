@@ -1,0 +1,16 @@
+# OptiMon - Paquete de Distribucion v3.0.0
+
+Contenido del paquete:
+- app.py: Aplicacion principal
+- docker-compose.yml: Configuracion de servicios
+- SETUP_AUTOMATICO_COMPLETO.bat: Instalacion automatica
+- setup_automatico.ps1: Script PowerShell avanzado
+- setup_automatico_completo.py: Script Python robusto
+- templates/: Plantillas web
+- static/: Archivos estaticos
+- docker/: Configuraciones Docker
+- core/: Modulos del sistema
+
+Fecha de creacion: 22/10/2025 19:59:39,47
+Sistema: OptiMon Unified Monitoring System
+Version: 3.0.0-UNIFIED
