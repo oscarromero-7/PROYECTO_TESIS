@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OptiMon - Sistema Unificado</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar-brand { font-weight: bold; }
+        .card { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .service-card { transition: transform 0.2s; }
+        .service-card:hover { transform: translateY(-5px); }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-online { background-color: #28a745; }
+        .status-offline { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
+        .metric-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>OptiMon Sistema Unificado
+            </a>
+            <span class="navbar-text">
+                <i class="fas fa-circle text-success me-1"></i>v3.0.0-UNIFIED
+            </span>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-5">
+                    <i class="fas fa-tachometer-alt text-primary me-3"></i>
+                    Panel de Control
+                </h1>
+                <p class="lead text-muted">
+                    Sistema completo de monitoreo con configuración automática
+                </p>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card service-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-server fa-2x text-primary mb-3"></i>
+                        <h5>Prometheus</h5>
+                        <div id="prometheus-status">
+                            <span class="status-indicator status-offline"></span>
+                            <span class="text-muted">Verificando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card service-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-chart-bar fa-2x text-success mb-3"></i>
+                        <h5>Grafana</h5>
+                        <div id="grafana-status">
+                            <span class="status-indicator status-offline"></span>
+                            <span class="text-muted">Verificando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card service-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-bell fa-2x text-warning mb-3"></i>
+                        <h5>AlertManager</h5>
+                        <div id="alertmanager-status">
+                            <span class="status-indicator status-offline"></span>
+                            <span class="text-muted">Verificando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card service-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-envelope fa-2x text-info mb-3"></i>
+                        <h5>Email Service</h5>
+                        <div id="email-status">
+                            <span class="status-indicator status-offline"></span>
+                            <span class="text-muted">Verificando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-rocket me-2"></i>Configuración Automática</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-laptop text-primary me-2"></i>Monitoreo Local</h6>
+                                <p class="text-muted">Configurar monitoreo automático de esta PC</p>
+                                <div id="local-monitoring-status" class="mb-2">
+                                    <small class="text-muted">Verificando estado...</small>
+                                </div>
+                                <button id="local-setup-btn" class="btn btn-primary" onclick="setupLocalMonitoring()">
+                                    <i class="fas fa-cog me-2"></i>Configurar Automáticamente
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-cloud text-info me-2"></i>Cloud Integration</h6>
+                                <p class="text-muted">Agregar credenciales AWS/Azure para auto-descubrimiento</p>
+                                <div class="btn-group w-100" role="group">
+                                    <button class="btn btn-outline-info" onclick="showCloudConfigModal('aws')">
+                                        <i class="fab fa-aws me-1"></i>AWS
+                                    </button>
+                                    <button class="btn btn-outline-info" onclick="showCloudConfigModal('azure')">
+                                        <i class="fab fa-microsoft me-1"></i>Azure
+                                    </button>
+                                </div>
+                                <div id="cloud-status" class="mt-2">
+                                    <small class="text-muted">Verificando configuración...</small>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-envelope text-success me-2"></i>Sistema de Alertas</h6>
+                                <p class="text-muted">Configurar destinatarios de email para alertas</p>
+                                <button class="btn btn-success" onclick="setupEmailAlerts()">
+                                    <i class="fas fa-mail-bulk me-2"></i>Configurar Emails
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-key text-warning me-2"></i>SSH Scanner</h6>
+                                <p class="text-muted">Escanear y configurar servidores automáticamente</p>
+                                <button class="btn btn-warning" onclick="runSSHScan()">
+                                    <i class="fas fa-search me-2"></i>Escanear SSH
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-external-link-alt me-2"></i>Acceso Rápido</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <a href="http://localhost:3000" target="_blank" class="btn btn-outline-primary w-100">
+                                    <i class="fas fa-chart-bar d-block fa-2x mb-2"></i>
+                                    Grafana Dashboards
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="http://localhost:9090" target="_blank" class="btn btn-outline-success w-100">
+                                    <i class="fas fa-database d-block fa-2x mb-2"></i>
+                                    Prometheus Metrics
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="http://localhost:9093" target="_blank" class="btn btn-outline-warning w-100">
+                                    <i class="fas fa-exclamation-triangle d-block fa-2x mb-2"></i>
+                                    AlertManager
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-info w-100" onclick="checkSystemHealth()">
+                                    <i class="fas fa-heartbeat d-block fa-2x mb-2"></i>
+                                    System Health
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Check service status
+        async function checkServicesStatus() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                // Update service indicators
+                updateServiceStatus('prometheus', data.components?.prometheus || false);
+                updateServiceStatus('grafana', data.components?.grafana || false);
+                updateServiceStatus('alertmanager', data.components?.alertmanager || false);
+                updateServiceStatus('email-service', data.components?.email_service || false);
+                
+            } catch (error) {
+                console.error('Error checking services:', error);
+            }
+        }
+
+
+
+        function updateServiceStatus(service, isOnline) {
+            const element = document.getElementById(service + '-status');
+            if (element) {
+                const indicator = element.querySelector('.status-indicator');
+                const text = element.querySelector('span:last-child');
+                
+                if (isOnline) {
+                    indicator.className = 'status-indicator status-online';
+                    text.textContent = 'Online';
+                    text.className = 'text-success';
+                } else {
+                    indicator.className = 'status-indicator status-offline';
+                    text.textContent = 'Offline';
+                    text.className = 'text-danger';
+                }
+            }
+        }
+
+        // Setup functions
+        async function setupLocalMonitoring() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Configurando...';
+            btn.className = 'btn btn-warning';
+            
+            try {
+                const response = await fetch('/api/local/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    btn.className = 'btn btn-success';
+                    btn.innerHTML = '<i class="fas fa-check me-2"></i>¡Configurado!';
+                    
+                    let message = '🎉 ¡Monitoreo Local Configurado!\n\n';
+                    message += '📊 Servicios configurados:\n';
+                    if (result.services_configured) {
+                        result.services_configured.forEach(service => {
+                            message += '✅ ' + service + '\n';
+                        });
+                    }
+                    message += '\n🔗 Enlaces de acceso:\n';
+                    if (result.access_info) {
+                        message += '• Métricas: ' + result.access_info.metrics_url + '\n';
+                        message += '• Dashboard: ' + result.access_info.grafana_dashboard + '\n';
+                        message += '• Prometheus: ' + result.access_info.prometheus_targets + '\n';
+                    }
+                    
+                    showSuccessModal('Configuración Completada', message);
+                    
+                    // Actualizar estado después de 3 segundos
+                    setTimeout(() => {
+                        checkServicesStatus();
+                    }, 3000);
+                    
+                } else {
+                    btn.className = 'btn btn-danger';
+                    btn.innerHTML = '<i class="fas fa-times me-2"></i>Error';
+                    showErrorModal('Error de Configuración', result.error || 'Error desconocido');
+                    
+                    setTimeout(() => {
+                        btn.className = 'btn btn-primary';
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }, 3000);
+                }
+            } catch (error) {
+                btn.className = 'btn btn-danger';
+                btn.innerHTML = '<i class="fas fa-times me-2"></i>Error';
+                showErrorModal('Error de Conexión', 'No se pudo conectar al servidor: ' + error.message);
+                
+                setTimeout(() => {
+                    btn.className = 'btn btn-primary';
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 3000);
+            }
+        }
+
+        function setupCloudMonitoring() {
+            showCloudConfigModal('aws');
+        }
+
+        function setupEmailAlerts() {
+            alert('🚧 Funcionalidad en desarrollo\n\nPróximamente: Configuración de emails desde el portal');
+        }
+
+        function runSSHScan() {
+            alert('🚧 Funcionalidad en desarrollo\n\nPróximamente: SSH scanner automático');
+        }
+
+        function checkSystemHealth() {
+            window.open('/api/health', '_blank');
+        }
+
+        // Cloud Configuration Functions
+        function showCloudConfigModal(provider) {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = generateCloudModalHTML(provider);
+            document.body.appendChild(modal);
+            
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            
+            // Load existing credentials
+            loadCloudCredentials(provider);
+            
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+
+        function generateCloudModalHTML(provider) {
+            const isAWS = provider === 'aws';
+            const title = isAWS ? 'AWS Configuration' : 'Azure Configuration';
+            const icon = isAWS ? 'fab fa-aws' : 'fab fa-microsoft';
+            
+            if (isAWS) {
+                return `
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning text-white">
+                                <h5 class="modal-title"><i class="${icon} me-2"></i>${title}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="aws-config-form">
+                                    <div class="mb-3">
+                                        <label class="form-label">Access Key ID</label>
+                                        <input type="text" class="form-control" id="aws-access-key" placeholder="AKIA...">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Secret Access Key</label>
+                                        <input type="password" class="form-control" id="aws-secret-key" placeholder="********">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Region</label>
+                                        <select class="form-control" id="aws-region">
+                                            <option value="us-east-1">US East (N. Virginia)</option>
+                                            <option value="us-west-2">US West (Oregon)</option>
+                                            <option value="eu-west-1">Europe (Ireland)</option>
+                                            <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+                                        </select>
+                                    </div>
+                                    <div class="alert alert-info">
+                                        <small>
+                                            <strong>Permisos requeridos:</strong><br>
+                                            • EC2:DescribeInstances<br>
+                                            • EC2:DescribeKeyPairs<br>
+                                            • CloudWatch:GetMetricStatistics
+                                        </small>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-warning" onclick="saveCloudCredentials('aws')">
+                                    <i class="fas fa-save me-2"></i>Guardar y Descubrir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-info text-white">
+                                <h5 class="modal-title"><i class="${icon} me-2"></i>${title}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="azure-config-form">
+                                    <div class="mb-3">
+                                        <label class="form-label">Subscription ID</label>
+                                        <input type="text" class="form-control" id="azure-subscription-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Tenant ID</label>
+                                        <input type="text" class="form-control" id="azure-tenant-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Client ID</label>
+                                        <input type="text" class="form-control" id="azure-client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Client Secret</label>
+                                        <input type="password" class="form-control" id="azure-client-secret" placeholder="********">
+                                    </div>
+                                    <div class="alert alert-info">
+                                        <small>
+                                            <strong>Configuración requerida:</strong><br>
+                                            • Registrar aplicación en Azure AD<br>
+                                            • Asignar rol "Reader" en la suscripción<br>
+                                            • Crear client secret
+                                        </small>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-info" onclick="saveCloudCredentials('azure')">
+                                    <i class="fas fa-save me-2"></i>Guardar y Descubrir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadCloudCredentials(provider) {
+            try {
+                const response = await fetch('/api/cloud/credentials');
+                const data = await response.json();
+                
+                if (provider === 'aws' && data.aws_region) {
+                    document.getElementById('aws-region').value = data.aws_region;
+                }
+            } catch (error) {
+                console.error('Error loading credentials:', error);
+            }
+        }
+
+        async function saveCloudCredentials(provider) {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+            
+            try {
+                let credentials = {};
+                
+                if (provider === 'aws') {
+                    credentials.aws = {
+                        access_key: document.getElementById('aws-access-key').value,
+                        secret_key: document.getElementById('aws-secret-key').value,
+                        region: document.getElementById('aws-region').value
+                    };
+                } else if (provider === 'azure') {
+                    credentials.azure = {
+                        subscription_id: document.getElementById('azure-subscription-id').value,
+                        tenant_id: document.getElementById('azure-tenant-id').value,
+                        client_id: document.getElementById('azure-client-id').value,
+                        client_secret: document.getElementById('azure-client-secret').value
+                    };
+                }
+                
+                // Guardar credenciales
+                const saveResponse = await fetch('/api/cloud/credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(credentials)
+                });
+                
+                if (!saveResponse.ok) {
+                    throw new Error('Error guardando credenciales');
+                }
+                
+                button.innerHTML = '<i class="fas fa-search me-2"></i>Descubriendo...';
+                
+                // Auto-descubrir instancias
+                const discoverResponse = await fetch('/api/cloud/discover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider: provider })
+                });
+                
+                const result = await discoverResponse.json();
+                
+                if (result.success) {
+                    button.className = 'btn btn-success';
+                    button.innerHTML = '<i class="fas fa-check me-2"></i>¡Completado!';
+                    
+                    let message = `🎉 ¡${provider.toUpperCase()} Configurado!\n\n`;
+                    message += `📊 Instancias descubiertas: ${result.count}\n`;
+                    if (result.ssh_keys_found && result.ssh_keys_found.length > 0) {
+                        message += `🔑 Claves SSH encontradas: ${result.ssh_keys_found.join(', ')}\n`;
+                    }
+                    if (result.dashboard && result.dashboard.success) {
+                        message += `📈 Dashboard creado: ${result.dashboard.url}\n`;
+                    }
+                    message += `\n✅ Prometheus configurado automáticamente`;
+                    
+                    showSuccessModal('Auto-descubrimiento Completado', message);
+                    
+                    // Actualizar estado en el dashboard
+                    setTimeout(() => {
+                        checkCloudStatus();
+                        checkServicesStatus();
+                    }, 2000);
+                    
+                } else {
+                    button.className = 'btn btn-danger';
+                    button.innerHTML = '<i class="fas fa-times me-2"></i>Error';
+                    showErrorModal('Error de Descubrimiento', result.error || 'Error desconocido');
+                }
+                
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                    button.className = provider === 'aws' ? 'btn btn-warning' : 'btn btn-info';
+                }, 3000);
+                
+            } catch (error) {
+                button.className = 'btn btn-danger';
+                button.innerHTML = '<i class="fas fa-times me-2"></i>Error';
+                showErrorModal('Error de Configuración', error.message);
+                
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                    button.className = provider === 'aws' ? 'btn btn-warning' : 'btn btn-info';
+                }, 3000);
+            }
+        }
+
+        async function checkCloudStatus() {
+            try {
+                const response = await fetch('/api/cloud/credentials');
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('cloud-status');
+                let status = '';
+                
+                if (data.aws_configured) {
+                    status += '<span class="badge bg-warning me-1"><i class="fab fa-aws me-1"></i>AWS</span>';
+                }
+                if (data.azure_configured) {
+                    status += '<span class="badge bg-info me-1"><i class="fab fa-microsoft me-1"></i>Azure</span>';
+                }
+                
+                if (status === '') {
+                    status = '<span class="badge bg-secondary">Sin configurar</span>';
+                }
+                
+                statusDiv.innerHTML = status;
+                
+            } catch (error) {
+                console.error('Error checking cloud status:', error);
+                const statusDiv = document.getElementById('cloud-status');
+                statusDiv.innerHTML = '<span class="badge bg-danger">Error</span>';
+            }
+        }
+
+        // Modal functions
+        function showSuccessModal(title, message) {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title"><i class="fas fa-check-circle me-2"></i>${title}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <pre style="white-space: pre-wrap; font-family: inherit;">${message}</pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-success" data-bs-dismiss="modal">Entendido</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+        
+        function showErrorModal(title, message) {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>${title}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>${message}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+
+        // Check local monitoring status
+        async function checkLocalMonitoringStatus() {
+            try {
+                const response = await fetch('/api/local/status');
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('local-monitoring-status');
+                const button = document.getElementById('local-setup-btn');
+                
+                if (data.overall_status === 'fully_configured') {
+                    statusDiv.innerHTML = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Configurado</span>';
+                    button.className = 'btn btn-success';
+                    button.innerHTML = '<i class="fas fa-check me-2"></i>¡Ya Configurado!';
+                    button.disabled = true;
+                } else if (data.overall_status === 'partially_configured') {
+                    statusDiv.innerHTML = '<span class="badge bg-warning"><i class="fas fa-exclamation me-1"></i>Parcial</span>';
+                    button.className = 'btn btn-warning';
+                    button.innerHTML = '<i class="fas fa-wrench me-2"></i>Completar Configuración';
+                } else {
+                    statusDiv.innerHTML = '<span class="badge bg-secondary"><i class="fas fa-times me-1"></i>Sin configurar</span>';
+                    button.className = 'btn btn-primary';
+                    button.innerHTML = '<i class="fas fa-cog me-2"></i>Configurar Automáticamente';
+                }
+            } catch (error) {
+                console.error('Error checking local monitoring status:', error);
+                const statusDiv = document.getElementById('local-monitoring-status');
+                statusDiv.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error</span>';
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkServicesStatus();
+            checkLocalMonitoringStatus();
+            checkCloudStatus();
+            setInterval(checkServicesStatus, 30000); // Check every 30 seconds
+            setInterval(checkLocalMonitoringStatus, 60000); // Check local status every minute
+            setInterval(checkCloudStatus, 120000); // Check cloud status every 2 minutes
+        });
+    </script>
+</body>
+</html>
