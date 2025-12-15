@@ -1,0 +1,131 @@
+groups:
+- name: physical_servers_alerts
+  rules:
+  # === ALERTAS DE CPU ===
+  - alert: PhysicalServerHighCPU
+    expr: (100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance) * 100)) > 85
+    for: 3m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - CPU alta"
+      description: "El servidor físico {{ $labels.instance }} tiene un uso de CPU de {{ $value | humanize }}% durante más de 3 minutos"
+      
+  - alert: PhysicalServerCriticalCPU
+    expr: (100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance) * 100)) > 95
+    for: 1m
+    labels:
+      severity: critical
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - CPU crítica"
+      description: "El servidor físico {{ $labels.instance }} tiene un uso de CPU crítico de {{ $value | humanize }}% durante más de 1 minuto"
+
+  # === ALERTAS DE MEMORIA ===
+  - alert: PhysicalServerHighMemory
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+    for: 2m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Memoria alta"
+      description: "El servidor físico {{ $labels.instance }} tiene un uso de memoria de {{ $value | humanize }}%"
+
+  - alert: PhysicalServerCriticalMemory
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+    for: 1m
+    labels:
+      severity: critical
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Memoria crítica"
+      description: "El servidor físico {{ $labels.instance }} tiene un uso de memoria crítico de {{ $value | humanize }}%"
+
+  # === ALERTAS DE DISCO ===
+  - alert: PhysicalServerLowDiskSpace
+    expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 85
+    for: 1m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Poco espacio en disco"
+      description: "El servidor físico {{ $labels.instance }} tiene {{ $value | humanize }}% de uso de disco en {{ $labels.mountpoint }}"
+
+  - alert: PhysicalServerCriticalDiskSpace
+    expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 95
+    for: 30s
+    labels:
+      severity: critical
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Disco crítico"
+      description: "El servidor físico {{ $labels.instance }} tiene {{ $value | humanize }}% de uso de disco crítico en {{ $labels.mountpoint }}"
+
+  # === ALERTAS DE RED ===
+  - alert: PhysicalServerHighNetworkErrors
+    expr: rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]) > 10
+    for: 2m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Errores de red altos"
+      description: "El servidor físico {{ $labels.instance }} tiene {{ $value | humanize }} errores de red por segundo en la interfaz {{ $labels.device }}"
+
+  # === ALERTAS DE CARGA DEL SISTEMA ===
+  - alert: PhysicalServerHighLoad
+    expr: node_load1 / count(count(node_cpu_seconds_total) by (cpu)) by (instance) > 0.8
+    for: 3m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Carga alta del sistema"
+      description: "El servidor físico {{ $labels.instance }} tiene una carga de sistema alta: {{ $value | humanize }}"
+
+  # === ALERTAS DE DISPONIBILIDAD ===
+  - alert: PhysicalServerDown
+    expr: up{job="node_exporter"} == 0
+    for: 30s
+    labels:
+      severity: critical
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - CAÍDO"
+      description: "El servidor físico {{ $labels.instance }} no responde. Node Exporter no está disponible."
+
+  # === ALERTAS DE TEMPERATURA (si está disponible) ===
+  - alert: PhysicalServerHighTemperature
+    expr: node_hwmon_temp_celsius > 70
+    for: 1m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Temperatura alta"
+      description: "El servidor físico {{ $labels.instance }} tiene temperatura alta: {{ $value | humanize }}°C en el sensor {{ $labels.chip }}"
+
+  # === ALERTAS DE SWAP ===
+  - alert: PhysicalServerHighSwapUsage
+    expr: (1 - (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes)) * 100 > 50
+    for: 2m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Uso alto de SWAP"
+      description: "El servidor físico {{ $labels.instance }} está usando {{ $value | humanize }}% de memoria SWAP"
+
+  # === ALERTAS DE PROCESOS ===
+  - alert: PhysicalServerTooManyProcesses
+    expr: node_procs_running > 300
+    for: 2m
+    labels:
+      severity: warning
+      alert_type: physical_server
+    annotations:
+      summary: "Servidor físico {{ $labels.instance }} - Demasiados procesos"
+      description: "El servidor físico {{ $labels.instance }} tiene {{ $value }} procesos ejecutándose simultáneamente"

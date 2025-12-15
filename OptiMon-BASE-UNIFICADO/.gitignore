@@ -1,0 +1,30 @@
+# Archivos de configuración con credenciales
+config/cloud_credentials.json
+**/cloud_credentials.json
+
+# Archivos temporales
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+
+# Archivos de entorno
+.env
+.env.local
+.env.production
+
+# Archivos de log
+*.log
+server_*.log
+
+# Archivos generados
+generated_infrastructure/
+generated_iac/
+
+# Archivos de configuración local
+config/local_*
+*.local.json

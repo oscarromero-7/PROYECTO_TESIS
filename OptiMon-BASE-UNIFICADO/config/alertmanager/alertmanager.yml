@@ -1,19 +1,20 @@
 global:
-  smtp_smarthost: 'localhost:587'
-  smtp_from: 'alertmanager@optimon.local'
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'wacry77@gmail.com'
+  smtp_auth_username: 'wacry77@gmail.com'
+  smtp_auth_password: 'ygnc fdkn btvh bzii'
 
 route:
   group_by: ['alertname']
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 1h
-  receiver: 'web.hook'
+  receiver: 'optimon_alerts'
 
 receivers:
-- name: 'web.hook'
-  webhook_configs:
-  - url: 'http://localhost:5000/api/alerts'
-    send_resolved: true
+- name: 'optimon_alerts'
+  email_configs:
+  - to: 'wacry77@gmail.com'
 
 inhibit_rules:
   - source_match:

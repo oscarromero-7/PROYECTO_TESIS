@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OptiMon - Monitoreo Físico</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .server-card {
+            transition: transform 0.2s;
+            border-left: 4px solid #28a745;
+        }
+        .server-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .server-card.offline {
+            border-left-color: #dc3545;
+        }
+        .metric-badge {
+            font-size: 0.9em;
+            padding: 0.3rem 0.6rem;
+        }
+        .status-online {
+            color: #28a745;
+        }
+        .status-offline {
+            color: #dc3545;
+        }
+        .scan-progress {
+            display: none;
+        }
+        .agent-download {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-speedometer2"></i> OptiMon
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">
+                    <i class="bi bi-house"></i> Dashboard
+                </a>
+                <a class="nav-link active" href="/physical-monitoring">
+                    <i class="bi bi-building"></i> Monitoreo Físico
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2><i class="bi bi-building"></i> Monitoreo de Infraestructura Física</h2>
+                        <p class="text-muted">Descubre y monitorea servidores físicos en tu red</p>
+                    </div>
+                    <div>
+                        <button onclick="scanNetwork()" class="btn btn-primary me-2" id="scanBtn">
+                            <i class="bi bi-search"></i> Buscar Servidores
+                        </button>
+                        <a href="/download/optimon-agent" class="btn agent-download">
+                            <i class="bi bi-download"></i> Descargar Agent
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progreso de escaneo -->
+        <div class="row scan-progress" id="scanProgress">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <h5 class="mt-3">🔍 Escaneando red en busca de OptiMon Agents...</h5>
+                        <p class="text-muted">Esto puede tomar unos momentos</p>
+                        <div class="progress mt-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="row mb-4" id="statsSection">
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h4 class="mb-0" id="totalServers">{{ servers|length }}</h4>
+                                <small>Servidores Encontrados</small>
+                            </div>
+                            <div class="ms-3">
+                                <i class="bi bi-server fs-1"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h4 class="mb-0" id="onlineServers">{{ servers|length }}</h4>
+                                <small>Online</small>
+                            </div>
+                            <div class="ms-3">
+                                <i class="bi bi-check-circle fs-1"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h4 class="mb-0" id="avgCpu">0%</h4>
+                                <small>CPU Promedio</small>
+                            </div>
+                            <div class="ms-3">
+                                <i class="bi bi-cpu fs-1"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h4 class="mb-0" id="avgMemory">0%</h4>
+                                <small>RAM Promedio</small>
+                            </div>
+                            <div class="ms-3">
+                                <i class="bi bi-memory fs-1"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de instalación -->
+        {% if servers|length == 0 %}
+        <div class="row" id="installInfo">
+            <div class="col-12">
+                <div class="card border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5><i class="bi bi-info-circle"></i> Cómo configurar OptiMon Physical Agent</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-download"></i> Paso 1: Descargar Agent</h6>
+                                <p>Descarga el OptiMon Physical Agent en cada servidor que quieras monitorear.</p>
+                                <a href="/download/optimon-agent" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-download"></i> Descargar optimon_agent.py
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-terminal"></i> Paso 2: Instalar y Ejecutar</h6>
+                                <p>En cada servidor, instala las dependencias y ejecuta el agent:</p>
+                                <code class="d-block bg-light p-2 rounded">
+                                    pip install flask psutil<br>
+                                    python optimon_agent.py
+                                </code>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-12">
+                                <h6><i class="bi bi-search"></i> Paso 3: Descubrir Servidores</h6>
+                                <p>Una vez que los agents estén ejecutándose, haz clic en "Buscar Servidores" para detectarlos automáticamente.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Lista de servidores -->
+        <div class="row" id="serversGrid">
+            {% for server in servers %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card server-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="card-title mb-1">
+                                    <i class="bi bi-server"></i> {{ server.hostname }}
+                                </h6>
+                                <small class="text-muted">{{ server.ip }} • {{ server.os }}</small>
+                            </div>
+                            <span class="badge bg-success">
+                                <i class="bi bi-circle-fill"></i> Online
+                            </span>
+                        </div>
+
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <div class="metric-badge badge bg-primary">
+                                    CPU<br>
+                                    <strong>{{ server.current_metrics.cpu.usage_percent|round|int if server.current_metrics.cpu else 'N/A' }}%</strong>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-badge badge bg-info">
+                                    RAM<br>
+                                    <strong>{{ server.current_metrics.memory.percent|round|int if server.current_metrics.memory else 'N/A' }}%</strong>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-badge badge bg-warning">
+                                    Disco<br>
+                                    <strong>{{ server.current_metrics.disk.percent|round|int if server.current_metrics.disk else 'N/A' }}%</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                Agent ID: {{ server.agent_id[:8] }}...
+                            </small>
+                            <button onclick="viewServerDetails('{{ server.agent_id }}')" 
+                                    class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> Detalles
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Información del último escaneo -->
+        {% if last_scan %}
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <small class="text-muted">
+                            <i class="bi bi-clock"></i> Último escaneo: {{ last_scan }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Modal para detalles del servidor -->
+    <div class="modal fade" id="serverDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-server"></i> Detalles del Servidor
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="serverDetailsContent">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables globales
+        let servers = {{ servers|tojson }};
+
+        // Función para escanear la red
+        async function scanNetwork() {
+            const scanBtn = document.getElementById('scanBtn');
+            const scanProgress = document.getElementById('scanProgress');
+            const serversGrid = document.getElementById('serversGrid');
+            
+            try {
+                // Mostrar progreso
+                scanBtn.disabled = true;
+                scanBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Escaneando...';
+                scanProgress.style.display = 'block';
+                
+                // Realizar escaneo
+                const response = await fetch('/api/physical/discover');
+                const data = await response.json();
+                
+                if (data.success) {
+                    servers = data.servers;
+                    updateServersGrid();
+                    updateStats();
+                    showNotification(`✅ Encontrados ${data.total_found} servidores`, 'success');
+                } else {
+                    showNotification('❌ Error en el escaneo: ' + data.error, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('❌ Error de conexión durante el escaneo', 'error');
+            } finally {
+                // Ocultar progreso
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '<i class="bi bi-search"></i> Descubrir Servidores';
+                scanProgress.style.display = 'none';
+            }
+        }
+            
+            // Mostrar progreso
+            scanBtn.disabled = true;
+            scanBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Escaneando...';
+            scanProgress.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/physical/discover-all', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    servers = data.servers;
+                    updateServersDisplay();
+                    updateStats();
+                    
+                    // Ocultar info de instalación si hay servidores
+                    if (data.servers.length > 0 && installInfo) {
+                        installInfo.style.display = 'none';
+                    }
+                    
+                    showNotification(`✅ Encontrados ${data.servers_found} servidores`, 'success');
+                } else {
+                    showNotification(`❌ Error: ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('❌ Error de conexión', 'error');
+            } finally {
+                // Restaurar botón
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '<i class="bi bi-search"></i> Buscar Servidores';
+                scanProgress.style.display = 'none';
+            }
+        }
+
+        // Actualizar visualización de servidores
+        function updateServersDisplay() {
+            const grid = document.getElementById('serversGrid');
+            
+            if (servers.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-search fs-1 text-muted"></i>
+                                <h5 class="mt-3">No se encontraron servidores</h5>
+                                <p class="text-muted">
+                                    Asegúrate de que los OptiMon Agents estén ejecutándose en los servidores
+                                    y haz clic en "Buscar Servidores" para escanear la red.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = servers.map(server => {
+                const cpu = server.current_metrics?.cpu?.usage_percent || 0;
+                const memory = server.current_metrics?.memory?.percent || 0;
+                const disk = server.current_metrics?.disk?.percent || 0;
+                
+                return `
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card server-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h6 class="card-title mb-1">
+                                            <i class="bi bi-server"></i> ${server.hostname}
+                                        </h6>
+                                        <small class="text-muted">${server.ip} • ${server.os}</small>
+                                    </div>
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-circle-fill"></i> Online
+                                    </span>
+                                </div>
+
+                                <div class="row text-center mb-3">
+                                    <div class="col-4">
+                                        <div class="metric-badge badge bg-primary">
+                                            CPU<br>
+                                            <strong>${Math.round(cpu)}%</strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="metric-badge badge bg-info">
+                                            RAM<br>
+                                            <strong>${Math.round(memory)}%</strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="metric-badge badge bg-warning">
+                                            Disco<br>
+                                            <strong>${Math.round(disk)}%</strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        Agent ID: ${server.agent_id.substring(0, 8)}...
+                                    </small>
+                                    <button onclick="viewServerDetails('${server.agent_id}')" 
+                                            class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i> Detalles
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Actualizar estadísticas
+        function updateStats() {
+            document.getElementById('totalServers').textContent = servers.length;
+            document.getElementById('onlineServers').textContent = servers.length;
+            
+            if (servers.length > 0) {
+                const avgCpu = servers.reduce((sum, s) => sum + (s.current_metrics?.cpu?.usage_percent || 0), 0) / servers.length;
+                const avgMemory = servers.reduce((sum, s) => sum + (s.current_metrics?.memory?.percent || 0), 0) / servers.length;
+                
+                document.getElementById('avgCpu').textContent = Math.round(avgCpu) + '%';
+                document.getElementById('avgMemory').textContent = Math.round(avgMemory) + '%';
+            }
+        }
+
+        // Ver detalles del servidor
+        async function viewServerDetails(agentId) {
+            try {
+                const response = await fetch(`/api/physical/server/${agentId}`);
+                const server = await response.json();
+                
+                if (response.ok) {
+                    const modalContent = document.getElementById('serverDetailsContent');
+                    modalContent.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-info-circle"></i> Información General</h6>
+                                <table class="table table-sm">
+                                    <tr><td><strong>Hostname:</strong></td><td>${server.hostname}</td></tr>
+                                    <tr><td><strong>IP:</strong></td><td>${server.ip}</td></tr>
+                                    <tr><td><strong>OS:</strong></td><td>${server.os}</td></tr>
+                                    <tr><td><strong>Agent ID:</strong></td><td>${server.agent_id}</td></tr>
+                                    <tr><td><strong>Versión:</strong></td><td>${server.version}</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-speedometer2"></i> Métricas Actuales</h6>
+                                <div class="mb-2">
+                                    <small>CPU: ${Math.round(server.current_metrics?.cpu?.usage_percent || 0)}%</small>
+                                    <div class="progress">
+                                        <div class="progress-bar" style="width: ${server.current_metrics?.cpu?.usage_percent || 0}%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <small>RAM: ${Math.round(server.current_metrics?.memory?.percent || 0)}%</small>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-info" style="width: ${server.current_metrics?.memory?.percent || 0}%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <small>Disco: ${Math.round(server.current_metrics?.disk?.percent || 0)}%</small>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-warning" style="width: ${server.current_metrics?.disk?.percent || 0}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('serverDetailsModal'));
+                    modal.show();
+                } else {
+                    showNotification('❌ Error obteniendo detalles del servidor', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('❌ Error de conexión', 'error');
+            }
+        }
+
+        // Mostrar notificaciones
+        function showNotification(message, type) {
+            // Crear elemento de notificación
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remover después de 5 segundos
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+        }
+
+        // Actualizar estadísticas inicial
+        updateStats();
+    </script>
+</body>
+</html>

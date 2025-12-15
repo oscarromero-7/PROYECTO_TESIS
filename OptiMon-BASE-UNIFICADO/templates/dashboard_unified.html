@@ -135,18 +135,25 @@
                         </div>
                         <hr>
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <h6><i class="fas fa-envelope text-success me-2"></i>Sistema de Alertas</h6>
                                 <p class="text-muted">Configurar destinatarios de email para alertas</p>
                                 <button class="btn btn-success" onclick="setupEmailAlerts()">
                                     <i class="fas fa-mail-bulk me-2"></i>Configurar Emails
                                 </button>
                             </div>
-                            <div class="col-md-6">
-                                <h6><i class="fas fa-key text-warning me-2"></i>SSH Scanner</h6>
-                                <p class="text-muted">Escanear y configurar servidores automáticamente</p>
-                                <button class="btn btn-warning" onclick="runSSHScan()">
-                                    <i class="fas fa-search me-2"></i>Escanear SSH
+                            <div class="col-md-4">
+                                <h6><i class="fas fa-exclamation-triangle text-warning me-2"></i>Alertas Personalizadas</h6>
+                                <p class="text-muted">Crear y gestionar alertas personalizadas</p>
+                                <button class="btn btn-warning" onclick="manageCustomAlerts()">
+                                    <i class="fas fa-bell me-2"></i>Gestionar Alertas
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <h6><i class="fas fa-chart-line text-success me-2"></i>Estado del Sistema</h6>
+                                <p class="text-muted">Monitoreo en tiempo real del servidor local</p>
+                                <button class="btn btn-success" onclick="viewSystemStatus()">
+                                    <i class="fas fa-eye me-2"></i>Ver Estado
                                 </button>
                             </div>
                         </div>
@@ -183,10 +190,68 @@
                                 </a>
                             </div>
                             <div class="col-md-3">
+                                <a href="/cost-optimization" class="btn btn-outline-info w-100">
+                                    <i class="fas fa-dollar-sign d-block fa-2x mb-2"></i>
+                                    Optimización de Costos
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="/infrastructure-replication" class="btn btn-outline-purple w-100" style="border-color: #6f42c1; color: #6f42c1;">
+                                    <i class="fas fa-copy d-block fa-2x mb-2"></i>
+                                    Replicación IaC
+                                </a>
+                            </div>
+                            <div class="col-md-3">
                                 <button class="btn btn-outline-info w-100" onclick="checkSystemHealth()">
                                     <i class="fas fa-heartbeat d-block fa-2x mb-2"></i>
                                     System Health
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Physical Infrastructure Monitoring -->
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-server me-2"></i>Monitoreo de Infraestructura Física</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <h6><i class="fas fa-network-wired text-primary me-2"></i>Descubrimiento de Servidores</h6>
+                                    <p class="text-muted">Escanea tu red local para encontrar servidores con el agente OptiMon instalado</p>
+                                    <button class="btn btn-primary" onclick="discoverPhysicalServers()">
+                                        <i class="fas fa-search me-2"></i>Escanear Red
+                                    </button>
+                                    <div id="scan-status" class="mt-2"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <h6><i class="fas fa-download text-success me-2"></i>Instalación del Agente</h6>
+                                    <p class="text-muted">Descarga e instala el agente OptiMon en tus servidores físicos</p>
+                                    <a href="/download-agent" class="btn btn-success">
+                                        <i class="fas fa-download me-2"></i>Descargar Agente
+                                    </a>
+                                    <a href="/physical-monitoring" class="btn btn-outline-info">
+                                        <i class="fas fa-cogs me-2"></i>Gestionar Servidores
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Discovered Servers Section -->
+                        <div id="physical-servers-section" class="mt-4" style="display: none;">
+                            <hr>
+                            <h6><i class="fas fa-server text-info me-2"></i>Servidores Descubiertos</h6>
+                            <div id="physical-servers-grid" class="row">
+                                <!-- Dynamic content will be loaded here -->
                             </div>
                         </div>
                     </div>
@@ -203,12 +268,15 @@
             try {
                 const response = await fetch('/api/health');
                 const data = await response.json();
+                console.log('Health check response:', data);
                 
                 // Update service indicators
                 updateServiceStatus('prometheus', data.components?.prometheus || false);
                 updateServiceStatus('grafana', data.components?.grafana || false);
                 updateServiceStatus('alertmanager', data.components?.alertmanager || false);
-                updateServiceStatus('email-service', data.components?.email_service || false);
+                updateServiceStatus('email', data.components?.email_service || false);
+                
+                console.log('Email service status:', data.components?.email_service);
                 
             } catch (error) {
                 console.error('Error checking services:', error);
@@ -218,20 +286,37 @@
 
 
         function updateServiceStatus(service, isOnline) {
-            const element = document.getElementById(service + '-status');
+            console.log(`Updating ${service} status to:`, isOnline);
+            
+            // Crear el ID correcto del elemento
+            let elementId = service + '-status';
+            
+            const element = document.getElementById(elementId);
+            console.log(`Looking for element with ID: ${elementId}`, element);
+            
             if (element) {
                 const indicator = element.querySelector('.status-indicator');
                 const text = element.querySelector('span:last-child');
                 
-                if (isOnline) {
-                    indicator.className = 'status-indicator status-online';
-                    text.textContent = 'Online';
-                    text.className = 'text-success';
+                console.log('Indicator found:', indicator);
+                console.log('Text element found:', text);
+                
+                if (indicator && text) {
+                    if (isOnline) {
+                        indicator.className = 'status-indicator status-online';
+                        text.textContent = 'Online';
+                        text.className = 'text-success';
+                    } else {
+                        indicator.className = 'status-indicator status-offline';
+                        text.textContent = 'Offline';
+                        text.className = 'text-danger';
+                    }
+                    console.log(`Successfully updated ${service} to ${isOnline ? 'Online' : 'Offline'}`);
                 } else {
-                    indicator.className = 'status-indicator status-offline';
-                    text.textContent = 'Offline';
-                    text.className = 'text-danger';
+                    console.error(`Indicator or text element not found for ${service}`);
                 }
+            } else {
+                console.error(`Element not found with ID: ${elementId}`);
             }
         }
 
@@ -304,11 +389,108 @@
         }
 
         function setupEmailAlerts() {
-            alert('🚧 Funcionalidad en desarrollo\n\nPróximamente: Configuración de emails desde el portal');
+            window.location.href = '/emails';
         }
 
-        function runSSHScan() {
-            alert('🚧 Funcionalidad en desarrollo\n\nPróximamente: SSH scanner automático');
+        function manageCustomAlerts() {
+            window.location.href = '/custom-alerts';
+        }
+
+        function viewSystemStatus() {
+            // Mostrar modal con estado del sistema
+            fetch('/api/system-status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    const modalContent = `
+                        <div class="modal fade" id="systemStatusModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">
+                                            <i class="fas fa-server me-2"></i>Estado del Sistema - ${data.system.hostname}
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6><i class="fas fa-microchip text-primary me-2"></i>CPU</h6>
+                                                <div class="progress mb-2">
+                                                    <div class="progress-bar ${data.cpu.usage_percent > 80 ? 'bg-danger' : data.cpu.usage_percent > 60 ? 'bg-warning' : 'bg-success'}" 
+                                                         style="width: ${data.cpu.usage_percent}%">${data.cpu.usage_percent}%</div>
+                                                </div>
+                                                <small>Núcleos: ${data.cpu.count}</small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6><i class="fas fa-memory text-info me-2"></i>Memoria</h6>
+                                                <div class="progress mb-2">
+                                                    <div class="progress-bar ${data.memory.percent > 80 ? 'bg-danger' : data.memory.percent > 60 ? 'bg-warning' : 'bg-success'}" 
+                                                         style="width: ${data.memory.percent}%">${data.memory.percent}%</div>
+                                                </div>
+                                                <small>${(data.memory.used / 1024 / 1024 / 1024).toFixed(1)} GB / ${(data.memory.total / 1024 / 1024 / 1024).toFixed(1)} GB</small>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col-md-6">
+                                                <h6><i class="fas fa-hdd text-warning me-2"></i>Disco</h6>
+                                                <div class="progress mb-2">
+                                                    <div class="progress-bar ${data.disk.percent > 80 ? 'bg-danger' : data.disk.percent > 60 ? 'bg-warning' : 'bg-success'}" 
+                                                         style="width: ${data.disk.percent}%">${data.disk.percent}%</div>
+                                                </div>
+                                                <small>${(data.disk.used / 1024 / 1024 / 1024).toFixed(1)} GB / ${(data.disk.total / 1024 / 1024 / 1024).toFixed(1)} GB</small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6><i class="fas fa-network-wired text-success me-2"></i>Red</h6>
+                                                <p class="mb-1"><small>⬇️ ${(data.network.bytes_recv / 1024 / 1024).toFixed(2)} MB</small></p>
+                                                <p class="mb-1"><small>⬆️ ${(data.network.bytes_sent / 1024 / 1024).toFixed(2)} MB</small></p>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col-12">
+                                                <h6><i class="fas fa-info-circle text-secondary me-2"></i>Información del Sistema</h6>
+                                                <p class="mb-1"><strong>Sistema:</strong> ${data.system.system} ${data.system.release}</p>
+                                                <p class="mb-1"><strong>Arquitectura:</strong> ${data.system.machine}</p>
+                                                <p class="mb-1"><strong>Tiempo de actividad:</strong> ${data.uptime_days} días</p>
+                                                <p class="mb-1"><strong>Estado:</strong> <span class="badge bg-success">Activo</span></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                        <button type="button" class="btn btn-primary" onclick="location.reload()">
+                                            <i class="fas fa-sync-alt me-2"></i>Actualizar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Agregar modal al DOM
+                    document.body.insertAdjacentHTML('beforeend', modalContent);
+                    
+                    // Mostrar modal
+                    const modal = new bootstrap.Modal(document.getElementById('systemStatusModal'));
+                    modal.show();
+                    
+                    // Limpiar modal al cerrar
+                    modal._element.addEventListener('hidden.bs.modal', function() {
+                        this.remove();
+                    });
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error obteniendo estado del sistema: ' + error.message);
+                });
         }
 
         function checkSystemHealth() {
@@ -643,6 +825,69 @@
                 const statusDiv = document.getElementById('local-monitoring-status');
                 statusDiv.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error</span>';
             }
+        }
+
+        // Physical Infrastructure Monitoring Functions
+        async function discoverPhysicalServers() {
+            const scanButton = document.querySelector('button[onclick="discoverPhysicalServers()"]');
+            const statusDiv = document.getElementById('scan-status');
+            
+            // Update button and show loading
+            scanButton.disabled = true;
+            scanButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Escaneando...';
+            statusDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-search me-2"></i>Escaneando red local en busca de agentes OptiMon...</div>';
+            
+            try {
+                const response = await fetch('/api/discover-physical-servers');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayPhysicalServers(data.servers);
+                    statusDiv.innerHTML = `<div class="alert alert-success"><i class="fas fa-check me-2"></i>Escaneo completado. Encontrados ${data.servers.length} servidor(es).</div>`;
+                } else {
+                    statusDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error al escanear la red.</div>';
+                }
+            } catch (error) {
+                console.error('Error discovering servers:', error);
+                statusDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error de conexión al escanear la red.</div>';
+            } finally {
+                // Reset button
+                scanButton.disabled = false;
+                scanButton.innerHTML = '<i class="fas fa-search me-2"></i>Escanear Red';
+            }
+        }
+        
+        function displayPhysicalServers(servers) {
+            const serversSection = document.getElementById('physical-servers-section');
+            const serversGrid = document.getElementById('physical-servers-grid');
+            
+            if (servers.length === 0) {
+                serversGrid.innerHTML = '<div class="col-12"><div class="alert alert-info">No se encontraron servidores con agentes OptiMon activos.</div></div>';
+            } else {
+                serversGrid.innerHTML = servers.map(server => `
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-success">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="fas fa-server text-success me-2"></i>
+                                    ${server.hostname || server.ip}
+                                </h6>
+                                <p class="card-text small">
+                                    <strong>IP:</strong> ${server.ip}<br>
+                                    <strong>OS:</strong> ${server.info.system} ${server.info.release}<br>
+                                    <strong>CPU:</strong> ${server.metrics.cpu_percent}%<br>
+                                    <strong>RAM:</strong> ${server.metrics.memory_percent}%
+                                </p>
+                                <a href="/physical-monitoring?server=${server.ip}" class="btn btn-sm btn-outline-success">
+                                    <i class="fas fa-eye me-1"></i>Ver Detalles
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            serversSection.style.display = 'block';
         }
 
         // Initialize

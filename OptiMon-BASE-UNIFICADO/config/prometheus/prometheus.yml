@@ -1,8 +1,10 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 rule_files:
   - "alert_rules.yml"
+  - "physical_alerts.yml"
 
 alerting:
   alertmanagers:
@@ -11,15 +13,47 @@ alerting:
           - alertmanager:9093
 
 scrape_configs:
+  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'node'
+  # Local Node Exporter (Docker service)
+  - job_name: 'node_exporter_local'
     static_configs:
-      - targets: ['localhost:9100']
+      - targets: ['optimon_node_exporter:9100']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
 
-  - job_name: 'optimon'
+  # Windows Exporter for local machine monitoring
+  - job_name: 'windows_exporter_local'
     static_configs:
-      - targets: ['localhost:5000']
+      - targets: ['host.docker.internal:9182']
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+
+  # OptiMon Portal metrics (host machine)
+  - job_name: 'optimon_portal'
+    static_configs:
+      - targets: ['host.docker.internal:5000']
     metrics_path: '/api/metrics'
+    scrape_interval: 30s
+
+  # Dynamic discovery of physical servers with Node Exporter
+  - job_name: 'node_exporter_physical'
+    http_sd_configs:
+      - url: 'http://host.docker.internal:5000/api/physical/prometheus-targets'
+        refresh_interval: 30s
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: localhost:5000  # OptiMon proxy for unreachable targets
+      - source_labels: [__meta_server_name]
+        target_label: server_name
+      - source_labels: [__meta_server_os]
+        target_label: os_type

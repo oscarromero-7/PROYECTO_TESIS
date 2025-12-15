@@ -1,14 +1,26 @@
-# Ignorar carpetas .terraform en cualquier lugar del proyecto
-**/.terraform/
-.terraform.lock.hcl
+# Credenciales y secretos
+**/cloud_credentials.json
+config/cloud_credentials.json
+OptiMon-BASE-UNIFICADO/config/cloud_credentials.json
 
-# Ignorar archivos de estado de Terraform, que pueden contener secretos
-*.tfstate
-*.tfstate.backup
+# Archivos de Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
 
-# Ignorar archivos de plan
-*.tfplan
+# Logs
+*.log
 
-# Ignorar logs de errores
-crash.log
-crash.*.log
+# Temporales
+*.tmp
+*.temp
+
+# Builds y distribuciones
+dist/
+build/
+*.exe
+
+# IDE
+.vscode/
+.idea/

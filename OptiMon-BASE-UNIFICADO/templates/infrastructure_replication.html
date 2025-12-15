@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Replicación de Infraestructura | OptiMon v3.1.0</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar-brand { font-weight: bold; }
+        .card { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .service-card { transition: transform 0.2s; }
+        .service-card:hover { transform: translateY(-5px); }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-online { background-color: #28a745; }
+        .status-offline { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
+        .metric-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        
+        .card-header {
+            border-radius: 15px 15px 0 0;
+            padding: 20px;
+        }
+        
+        .instance-card {
+            border-left: 4px solid #007bff;
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        .instance-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .instance-card.aws {
+            border-left-color: #ff9900;
+        }
+        
+        .instance-card.azure {
+            border-left-color: #0078d4;
+        }
+        
+        .instance-card.physical {
+            border-left-color: #6c757d;
+        }
+        
+        .provider-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .provider-aws {
+            background-color: rgba(255, 153, 0, 0.1);
+            color: #ff9900;
+            border: 1px solid rgba(255, 153, 0, 0.3);
+        }
+        
+        .provider-azure {
+            background-color: rgba(0, 120, 212, 0.1);
+            color: #0078d4;
+            border: 1px solid rgba(0, 120, 212, 0.3);
+        }
+        
+        .provider-physical {
+            background-color: rgba(108, 117, 125, 0.1);
+            color: #6c757d;
+            border: 1px solid rgba(108, 117, 125, 0.3);
+        }
+        
+        .btn-generate {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-generate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            color: white;
+        }
+        
+        .loading-spinner {
+            display: none;
+        }
+        
+        .generation-result {
+            display: none;
+        }
+        
+        .code-preview {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line me-2"></i>OptiMon v3.1.0
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/"><i class="fas fa-home me-1"></i>Dashboard</a>
+                <a class="nav-link" href="/emails"><i class="fas fa-envelope me-1"></i>Alertas</a>
+                <a class="nav-link" href="/cost-optimization"><i class="fas fa-dollar-sign me-1"></i>Costos</a>
+                <a class="nav-link active" href="/infrastructure-replication"><i class="fas fa-copy me-1"></i>Replicación IaC</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">
+                    <i class="fas fa-copy me-2"></i>
+                    Replicación de Infraestructura como Código
+                </h3>
+                <p class="mb-0">Genera código Terraform basado en tus VMs escaneadas existentes</p>
+            </div>
+        </div>
+
+        <!-- Información del sistema -->
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-server me-2"></i>Instancias Descubiertas</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Estas son las instancias encontradas en tu infraestructura. Selecciona las que quieres replicar:</p>
+                        
+                        <div id="instancesContainer">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Cargando instancias descubiertas...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-outline-secondary" onclick="refreshInstances()">
+                                <i class="fas fa-sync-alt me-2"></i>Actualizar Lista
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-code me-2"></i>Generar Código IaC</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Genera código Infrastructure as Code para replicar tu infraestructura:</p>
+                        
+                        <div class="mb-3">
+                            <label for="providerSelect" class="form-label">Proveedor de Nube:</label>
+                            <select class="form-select" id="providerSelect">
+                                <option value="">Seleccionar proveedor...</option>
+                                <option value="aws">Amazon AWS</option>
+                                <option value="azure">Microsoft Azure</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="outputFormat" class="form-label">Formato de Salida:</label>
+                            <select class="form-select" id="outputFormat">
+                                <option value="terraform">Terraform (.tf)</option>
+                                <option value="cloudformation" disabled>CloudFormation (Próximamente)</option>
+                            </select>
+                        </div>
+                        
+                        <button class="btn btn-generate w-100" onclick="generateInfrastructure()" disabled>
+                            <i class="fas fa-magic me-2"></i>Generar Código IaC
+                        </button>
+                        
+                        <div class="loading-spinner mt-3 text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Generando...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Generando código de infraestructura...</p>
+                        </div>
+                        
+                        <div id="generationResult" class="generation-result mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultados de generación -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div id="codePreviewSection" class="card" style="display: none;">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0"><i class="fas fa-file-code me-2"></i>Código Generado</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="codePreviewContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let discoveredInstances = [];
+        let selectedInstances = [];
+
+        // Cargar instancias al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDiscoveredInstances();
+        });
+
+        async function loadDiscoveredInstances() {
+            try {
+                const response = await fetch('/api/cost-optimization/discovered-instances');
+                const data = await response.json();
+                
+                if (data.success) {
+                    discoveredInstances = data.instances || [];
+                    renderInstances();
+                } else {
+                    showError('Error cargando instancias: ' + (data.error || 'Error desconocido'));
+                }
+            } catch (error) {
+                showError('Error de conexión: ' + error.message);
+            }
+        }
+
+        function renderInstances() {
+            const container = document.getElementById('instancesContainer');
+            
+            if (discoveredInstances.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-circle text-warning" style="font-size: 3rem;"></i>
+                        <h4 class="mt-3">No se encontraron instancias</h4>
+                        <p class="text-muted">Asegúrate de que las credenciales de AWS/Azure estén configuradas.</p>
+                        <button class="btn btn-primary" onclick="refreshInstances()">
+                            <i class="fas fa-sync-alt me-2"></i>Reintentar
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            discoveredInstances.forEach((instance, index) => {
+                const providerClass = instance.provider || 'physical';
+                const providerBadge = getProviderBadge(instance.provider);
+                const statusIcon = getStatusIcon(instance.status);
+                
+                html += `
+                    <div class="card instance-card ${providerClass} mb-3">
+                        <div class="card-body">
+                            <div class="form-check float-end">
+                                <input class="form-check-input" type="checkbox" value="${index}" 
+                                       id="instance_${index}" onchange="updateSelectedInstances()">
+                                <label class="form-check-label" for="instance_${index}">
+                                    Seleccionar
+                                </label>
+                            </div>
+                            
+                            <h6 class="card-title">
+                                ${statusIcon} ${instance.name}
+                                <span class="ms-2">${providerBadge}</span>
+                            </h6>
+                            
+                            <div class="row text-small">
+                                <div class="col-6">
+                                    <strong>ID:</strong> ${instance.id}<br>
+                                    <strong>Tipo:</strong> ${instance.type}
+                                </div>
+                                <div class="col-6">
+                                    <strong>IP:</strong> ${instance.ip}<br>
+                                    <strong>Estado:</strong> ${instance.status}
+                                </div>
+                            </div>
+                            
+                            ${instance.zone ? `<small class="text-muted">Zona: ${instance.zone}</small>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            updateGenerateButton();
+        }
+
+        function getProviderBadge(provider) {
+            switch(provider) {
+                case 'aws':
+                    return '<span class="provider-badge provider-aws">AWS</span>';
+                case 'azure':
+                    return '<span class="provider-badge provider-azure">Azure</span>';
+                case 'physical':
+                    return '<span class="provider-badge provider-physical">Físico</span>';
+                default:
+                    return '<span class="provider-badge provider-physical">Desconocido</span>';
+            }
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'running':
+                    return '<i class="fas fa-circle text-success"></i>';
+                case 'stopped':
+                    return '<i class="fas fa-circle text-danger"></i>';
+                case 'unknown':
+                    return '<i class="fas fa-circle text-warning"></i>';
+                default:
+                    return '<i class="fas fa-circle text-secondary"></i>';
+            }
+        }
+
+        function updateSelectedInstances() {
+            selectedInstances = [];
+            const checkboxes = document.querySelectorAll('#instancesContainer input[type="checkbox"]:checked');
+            
+            checkboxes.forEach(checkbox => {
+                const index = parseInt(checkbox.value);
+                selectedInstances.push(discoveredInstances[index]);
+            });
+            
+            updateGenerateButton();
+        }
+
+        function updateGenerateButton() {
+            const generateBtn = document.querySelector('.btn-generate');
+            const providerSelect = document.getElementById('providerSelect');
+            
+            const hasInstances = selectedInstances.length > 0;
+            const hasProvider = providerSelect.value !== '';
+            
+            generateBtn.disabled = !(hasInstances && hasProvider);
+        }
+
+        function refreshInstances() {
+            const container = document.getElementById('instancesContainer');
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Actualizando lista de instancias...</p>
+                </div>
+            `;
+            
+            loadDiscoveredInstances();
+        }
+
+        async function generateInfrastructure() {
+            const provider = document.getElementById('providerSelect').value;
+            const outputFormat = document.getElementById('outputFormat').value;
+            
+            if (!provider || selectedInstances.length === 0) {
+                showError('Selecciona un proveedor e instancias para continuar');
+                return;
+            }
+
+            // Filtrar instancias por proveedor seleccionado
+            const filteredInstances = selectedInstances.filter(instance => 
+                instance.provider === provider
+            );
+
+            if (filteredInstances.length === 0) {
+                showError(`No hay instancias ${provider.toUpperCase()} seleccionadas`);
+                return;
+            }
+
+            // Mostrar spinner
+            document.querySelector('.loading-spinner').style.display = 'block';
+            document.querySelector('.btn-generate').disabled = true;
+            document.getElementById('generationResult').style.display = 'none';
+            document.getElementById('codePreviewSection').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/infrastructure/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        provider: provider,
+                        format: outputFormat,
+                        instances: filteredInstances
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showGenerationSuccess(result);
+                } else {
+                    showError('Error generando infraestructura: ' + (result.error || 'Error desconocido'));
+                }
+            } catch (error) {
+                showError('Error de conexión: ' + error.message);
+            } finally {
+                document.querySelector('.loading-spinner').style.display = 'none';
+                document.querySelector('.btn-generate').disabled = false;
+            }
+        }
+
+        function showGenerationSuccess(result) {
+            const resultContainer = document.getElementById('generationResult');
+            
+            resultContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-check-circle me-2"></i>¡Código generado exitosamente!</h6>
+                    <div class="mt-2">
+                        <strong>Proyecto:</strong> ${result.project_name}<br>
+                        <strong>Instancias replicadas:</strong> ${result.instances_replicated}<br>
+                        <strong>Archivos creados:</strong> ${result.files_created.join(', ')}
+                    </div>
+                    <div class="mt-3">
+                        <a href="${result.download_url}" class="btn btn-success btn-sm">
+                            <i class="fas fa-download me-2"></i>Descargar Proyecto
+                        </a>
+                        <button class="btn btn-info btn-sm ms-2" onclick="previewCode('${result.project_name}')">
+                            <i class="fas fa-eye me-2"></i>Vista Previa
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            resultContainer.style.display = 'block';
+            resultContainer.classList.add('fade-in');
+        }
+
+        async function previewCode(projectName) {
+            try {
+                const response = await fetch(`/api/infrastructure/preview/${projectName}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const previewSection = document.getElementById('codePreviewSection');
+                    const previewContent = document.getElementById('codePreviewContent');
+                    
+                    let html = '';
+                    for (const [filename, content] of Object.entries(result.files)) {
+                        html += `
+                            <div class="mb-3">
+                                <h6><i class="fas fa-file-code me-2"></i>${filename}</h6>
+                                <div class="code-preview">
+                                    <pre><code>${escapeHtml(content.substring(0, 1000))}${content.length > 1000 ? '...\n\n[Archivo truncado - descarga el proyecto completo]' : ''}</code></pre>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    previewContent.innerHTML = html;
+                    previewSection.style.display = 'block';
+                    previewSection.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showError('Error obteniendo vista previa: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error de conexión: ' + error.message);
+            }
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        function showError(message) {
+            const resultContainer = document.getElementById('generationResult');
+            resultContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${message}
+                </div>
+            `;
+            resultContainer.style.display = 'block';
+        }
+
+        // Event listeners
+        document.getElementById('providerSelect').addEventListener('change', updateGenerateButton);
+    </script>
+</body>
+</html>

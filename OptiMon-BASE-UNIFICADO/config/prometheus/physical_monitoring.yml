@@ -1,0 +1,84 @@
+# OptiMon Physical Infrastructure - Configuración Prometheus
+# Agregar este job al prometheus.yml existente
+
+  # Physical Infrastructure Monitoring via Bridge
+  - job_name: 'optimon-physical-bridge'
+    static_configs:
+      - targets: ['localhost:9091']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    honor_labels: true
+    
+    # Relabeling para mejor organización
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'optimon_physical_(.*)'
+        target_label: '__name__'
+        replacement: 'physical_${1}'
+      
+      # Agregar etiquetas para identificación
+      - target_label: 'infrastructure_type'
+        replacement: 'physical'
+        
+      - target_label: 'optimon_component'
+        replacement: 'physical_agent'
+
+# Reglas de alertas para infraestructura física
+groups:
+  - name: optimon_physical_alerts
+    rules:
+      
+      # CPU alto en servidores físicos
+      - alert: PhysicalServerHighCPU
+        expr: physical_cpu_usage_percent > 85
+        for: 2m
+        labels:
+          severity: warning
+          infrastructure_type: physical
+        annotations:
+          summary: "Alto uso de CPU en servidor físico {{ $labels.hostname }}"
+          description: "El servidor físico {{ $labels.hostname }} ({{ $labels.ip }}) tiene un uso de CPU del {{ $value }}% durante más de 2 minutos."
+      
+      # Memoria alta en servidores físicos
+      - alert: PhysicalServerHighMemory
+        expr: physical_memory_usage_percent > 90
+        for: 5m
+        labels:
+          severity: warning
+          infrastructure_type: physical
+        annotations:
+          summary: "Alto uso de memoria en servidor físico {{ $labels.hostname }}"
+          description: "El servidor físico {{ $labels.hostname }} ({{ $labels.ip }}) tiene un uso de memoria del {{ $value }}% durante más de 5 minutos."
+      
+      # Disco lleno en servidores físicos
+      - alert: PhysicalServerDiskFull
+        expr: physical_disk_usage_percent > 95
+        for: 1m
+        labels:
+          severity: critical
+          infrastructure_type: physical
+        annotations:
+          summary: "Disco casi lleno en servidor físico {{ $labels.hostname }}"
+          description: "El servidor físico {{ $labels.hostname }} ({{ $labels.ip }}) tiene el disco al {{ $value }}% de capacidad."
+      
+      # Servidor físico no disponible
+      - alert: PhysicalServerDown
+        expr: up{job="optimon-physical-bridge"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          infrastructure_type: physical
+        annotations:
+          summary: "Servidor físico no disponible"
+          description: "El bridge de métricas físicas está inaccesible, posibles servidores físicos fuera de línea."
+
+      # CPU crítico
+      - alert: PhysicalServerCriticalCPU
+        expr: physical_cpu_usage_percent > 95
+        for: 1m
+        labels:
+          severity: critical
+          infrastructure_type: physical
+        annotations:
+          summary: "CPU crítico en servidor físico {{ $labels.hostname }}"
+          description: "CRÍTICO: El servidor físico {{ $labels.hostname }} ({{ $labels.ip }}) tiene un uso de CPU del {{ $value }}%."
