@@ -1,0 +1,238 @@
+[
+  {
+    "id": 1,
+    "name": "CPU_Alto_Personalizado",
+    "description": "Alerta cuando CPU supera 80% en servidores críticos",
+    "metric": "cpu_usage_percent",
+    "threshold": 80.0,
+    "operator": ">",
+    "severity": "critical",
+    "enabled": true,
+    "created_at": "2025-10-26T12:23:06.538633",
+    "tags": [
+      "servidor",
+      "critico",
+      "cpu"
+    ],
+    "notification_channels": [
+      "email"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Memoria_Advertencia",
+    "description": "Advertencia cuando memoria supera 70%",
+    "metric": "memory_usage_percent",
+    "threshold": 70.0,
+    "operator": ">=",
+    "severity": "warning",
+    "enabled": true,
+    "created_at": "2025-10-26T12:23:08.637803",
+    "tags": [
+      "memoria",
+      "advertencia"
+    ],
+    "notification_channels": [
+      "email"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Tiempo_Respuesta_Lento",
+    "description": "Alerta cuando tiempo de respuesta es mayor a 500ms",
+    "metric": "response_time_ms",
+    "threshold": 500.0,
+    "operator": ">",
+    "severity": "warning",
+    "enabled": true,
+    "created_at": "2025-10-26T12:23:10.703624",
+    "tags": [
+      "performance",
+      "web"
+    ],
+    "notification_channels": [
+      "email"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Probando",
+    "description": "Agregando alertas manuales ",
+    "metric": "cpu_usage_percent",
+    "threshold": 5.0,
+    "operator": "<",
+    "severity": "critical",
+    "enabled": true,
+    "created_at": "2025-10-26T12:27:26.016691",
+    "tags": [],
+    "notification_channels": [
+      "email"
+    ]
+  },
+  {
+    "id": 5,
+    "name": "AWS_EC2_CPU_Critical",
+    "description": "CPU crítico en instancia EC2 de producción",
+    "metric": "cpu_usage_percent",
+    "threshold": 85.0,
+    "operator": ">",
+    "severity": "critical",
+    "enabled": true,
+    "created_at": "2025-10-26T12:36:06.319190",
+    "tags": [
+      "aws",
+      "ec2",
+      "produccion",
+      "critico"
+    ],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "aws_ec2",
+    "resource_name": "i-0123456789abcdef0",
+    "region": "us-east-1",
+    "environment": "production"
+  },
+  {
+    "id": 6,
+    "name": "Azure_VM_Memory_Warning",
+    "description": "Memoria alta en VM de Azure (desarrollo)",
+    "metric": "memory_usage_percent",
+    "threshold": 75.0,
+    "operator": ">=",
+    "severity": "warning",
+    "enabled": true,
+    "created_at": "2025-10-26T12:36:08.406174",
+    "tags": [
+      "azure",
+      "vm",
+      "desarrollo",
+      "memoria"
+    ],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "azure_vm",
+    "resource_name": "dev-vm-webserver-01",
+    "region": "West Europe",
+    "environment": "development"
+  },
+  {
+    "id": 7,
+    "name": "Physical_Server_Disk_Alert",
+    "description": "Disco lleno en servidor físico del datacenter",
+    "metric": "disk_usage_percent",
+    "threshold": 90.0,
+    "operator": ">=",
+    "severity": "critical",
+    "enabled": true,
+    "created_at": "2025-10-26T12:36:10.474408",
+    "tags": [
+      "fisico",
+      "servidor",
+      "disco",
+      "database"
+    ],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "physical_server",
+    "resource_name": "srv-db-prod-01.empresa.com",
+    "region": "Datacenter-Principal",
+    "environment": "production"
+  },
+  {
+    "id": 8,
+    "name": "K8s_Pod_Response_Time",
+    "description": "Tiempo de respuesta alto en pod de Kubernetes",
+    "metric": "response_time_ms",
+    "threshold": 200.0,
+    "operator": ">",
+    "severity": "warning",
+    "enabled": true,
+    "created_at": "2025-10-26T12:36:12.528376",
+    "tags": [
+      "kubernetes",
+      "pod",
+      "performance",
+      "web"
+    ],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "kubernetes",
+    "resource_name": "web-app-pod-7c5f9d8b4-x9k2m",
+    "region": "us-west-2",
+    "environment": "staging"
+  },
+  {
+    "id": 9,
+    "name": "Test_Recurso_Local_Detectado",
+    "description": "Alerta de prueba usando recurso detectado automáticamente",
+    "metric": "cpu_usage_percent",
+    "threshold": 80.0,
+    "operator": ">",
+    "severity": "warning",
+    "enabled": true,
+    "created_at": "2025-10-26T12:45:45.323590",
+    "tags": [
+      "local",
+      "detectado",
+      "automatico"
+    ],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "physical_server",
+    "resource_name": "localhost",
+    "resource_ip": "127.0.0.1",
+    "region": "Local",
+    "environment": "development",
+    "resource_details": ""
+  },
+  {
+    "id": 10,
+    "name": "Probando__",
+    "description": "",
+    "metric": "cpu_usage_percent",
+    "threshold": 10.0,
+    "operator": "<",
+    "severity": "info",
+    "enabled": true,
+    "created_at": "2025-10-26T12:56:02.884095",
+    "tags": [],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "aws_ec2",
+    "resource_name": "i-02ea1ed5284ef34bd",
+    "resource_ip": "10.0.1.132",
+    "region": "us-east-1a",
+    "environment": "staging",
+    "resource_details": "{\"id\":\"i-02ea1ed5284ef34bd\",\"name\":\"Prueba-08-10\",\"private_ip\":\"10.0.1.132\",\"public_ip\":\"54.90.155.80\",\"state\":\"running\",\"type\":\"t3.micro\",\"zone\":\"us-east-1a\"}"
+  },
+  {
+    "id": 11,
+    "name": "Prueba release 3 ",
+    "description": "Realease 3",
+    "metric": "disk_usage_percent",
+    "threshold": 35.0,
+    "operator": ">",
+    "severity": "critical",
+    "enabled": true,
+    "created_at": "2025-10-26T21:59:05.957734",
+    "tags": [
+      "Pruebas"
+    ],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "physical_server",
+    "resource_name": "ASUS-VivoBook",
+    "resource_ip": "192.168.100.138",
+    "region": "Local",
+    "environment": "staging",
+    "resource_details": "{\"hostname\":\"ASUS-VivoBook\",\"ip\":\"192.168.100.138\",\"location\":\"Local\",\"name\":\"ASUS-VivoBook\",\"node\":\"ASUS-VivoBook\",\"system\":\"Windows\",\"type\":\"local-windows\"}",
+    "updated_at": "2025-12-14T19:18:59.222533"
+  }
+]

@@ -11,7 +11,7 @@ Portal único que integra todas las funcionalidades:
 - Configuración centralizada
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
 import json
 import os
 import sys
@@ -25,10 +25,29 @@ from pathlib import Path
 from datetime import datetime
 import yaml
 import logging
+import ipaddress
+
+# Importaciones para email
+import smtplib
+import email.utils
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import threading
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Importar motor de optimización de costos
+try:
+    from cost_optimization_engine import CostOptimizationEngine
+    cost_optimizer = CostOptimizationEngine()
+    COST_OPTIMIZATION_ENABLED = True
+    logger.info("💰 Motor de Optimización de Costos: CARGADO")
+except ImportError as e:
+    logger.warning(f"⚠️ Motor de optimización no disponible: {e}")
+    cost_optimizer = None
+    COST_OPTIMIZATION_ENABLED = False
 
 app = Flask(__name__)
 app.secret_key = 'optimon_unified_secret_key_2025'
@@ -38,9 +57,25 @@ CONFIG_DIR = Path("config")
 EMAILS_CONFIG = CONFIG_DIR / "email_recipients.json"
 CLOUDS_CONFIG = CONFIG_DIR / "cloud_credentials.json"
 MONITORING_CONFIG = CONFIG_DIR / "monitoring_settings.json"
+EMAIL_SMTP_CONFIG = CONFIG_DIR / "smtp_config.json"
+CUSTOM_ALERTS_CONFIG = CONFIG_DIR / "custom_alerts.json"
 
 # Crear directorios si no existen
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+# Configuración SMTP por defecto - Gmail real configurado
+DEFAULT_SMTP_CONFIG = {
+    'host': 'smtp.gmail.com',
+    'port': 587,
+    'username': 'wacry77@gmail.com',
+    'password': 'ygncfdknbtvhbzii',
+    'use_tls': True,
+    'from_name': 'OptiMon Sistema de Monitoreo',
+    'from_email': 'wacry77@gmail.com',
+    'timeout': 30,
+    'configured': True,  # Marca que viene preconfigurado
+    'service': 'gmail_real'  # Identificador del servicio real
+}
 
 # ===== IMPORTAR MÓDULOS CORE =====
 sys.path.append('core')
@@ -106,8 +141,14 @@ def health_check():
         health_status['components']['prometheus'] = check_port_status('localhost', 9090)
         health_status['components']['grafana'] = check_port_status('localhost', 3000)
         health_status['components']['alertmanager'] = check_port_status('localhost', 9093)
-        health_status['components']['email_service'] = check_port_status('localhost', 5555)
         health_status['components']['windows_exporter'] = check_port_status('localhost', 9182)
+        
+        # Verificar configuración de email
+        health_status['components']['email_service'] = check_email_service_health()
+        
+        # Verificar configuración de cloud
+        cloud_config = load_config(CLOUDS_CONFIG, {})
+        health_status['components']['cloud_configured'] = bool(cloud_config)
         
         # Determinar estado general
         all_critical_up = all([
@@ -223,25 +264,6 @@ def email_configuration():
             
     except Exception as e:
         logger.error(f"Error en configuración de email: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/email/test', methods=['POST'])
-def test_email():
-    """Enviar email de prueba"""
-    try:
-        data = request.get_json()
-        test_email = data.get('email')
-        
-        if not test_email:
-            return jsonify({'success': False, 'error': 'Email requerido'}), 400
-        
-        # Enviar email de prueba usando el servicio SMTP
-        test_result = send_test_email_unified(test_email)
-        
-        return jsonify(test_result)
-        
-    except Exception as e:
-        logger.error(f"Error enviando email de prueba: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ===== MONITOREO LOCAL AUTOMÁTICO =====
@@ -409,7 +431,294 @@ def ssh_scan():
         logger.error(f"Error en SSH scan: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# ===== PHYSICAL INFRASTRUCTURE MONITORING =====
+
+@app.route('/api/physical/discover')
+def discover_physical_servers():
+    """Discover Node Exporter instances on network"""
+    try:
+        discovered_servers = []
+        
+        # Get local network ranges
+        network_ranges = get_local_network_ranges()
+        
+        for network_range in network_ranges:
+            logger.info(f"Scanning network range: {network_range}")
+            
+            # Parse network range
+            try:
+                network = ipaddress.ip_network(network_range, strict=False)
+                
+                # Scan each IP in the range (limit to first 50 IPs for performance)
+                count = 0
+                for ip in network.hosts():
+                    if count >= 50:  # Limit scan to avoid timeout
+                        break
+                    
+                    if check_node_exporter(str(ip)):
+                        server_info = get_server_info(str(ip))
+                        discovered_servers.append(server_info)
+                    
+                    count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error scanning network {network_range}: {e}")
+                continue
+        
+        return jsonify({
+            'success': True,
+            'servers': discovered_servers,
+            'total_found': len(discovered_servers)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in physical discovery: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/physical/server/<ip>/info')
+def get_physical_server_info(ip):
+    """Get detailed info from a specific physical server"""
+    try:
+        if not check_node_exporter(ip):
+            return jsonify({'success': False, 'error': 'Node Exporter not accessible'}), 404
+        
+        server_info = get_server_detailed_info(ip)
+        return jsonify({'success': True, 'server': server_info})
+        
+    except Exception as e:
+        logger.error(f"Error getting server info for {ip}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/download/scripts/<script_name>')
+def download_installation_script(script_name):
+    """Provide Node Exporter installation scripts for download"""
+    try:
+        script_path = os.path.join('scripts', script_name)
+        
+        if not os.path.exists(script_path):
+            return jsonify({'error': 'Script not found'}), 404
+        
+        # Set appropriate content type based on script type
+        if script_name.endswith('.sh'):
+            mimetype = 'application/x-sh'
+        elif script_name.endswith('.ps1'):
+            mimetype = 'application/x-powershell'
+        else:
+            mimetype = 'text/plain'
+        
+        return send_file(script_path, as_attachment=True, mimetype=mimetype)
+        
+    except Exception as e:
+        logger.error(f"Error downloading script {script_name}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/physical/prometheus-targets')
+def prometheus_service_discovery():
+    """Provide dynamic service discovery targets for Prometheus"""
+    try:
+        targets = []
+        
+        # Get current discovered servers
+        network_ranges = get_local_network_ranges()
+        
+        for network_range in network_ranges:
+            try:
+                network = ipaddress.ip_network(network_range, strict=False)
+                
+                # Quick scan for active Node Exporter instances
+                count = 0
+                for ip in network.hosts():
+                    if count >= 30:  # Limit for faster discovery
+                        break
+                    
+                    if check_node_exporter(str(ip)):
+                        # Get basic server info
+                        try:
+                            response = requests.get(f'http://{ip}:9100/metrics', timeout=2)
+                            if response.status_code == 200:
+                                target_info = {
+                                    "targets": [f"{ip}:9100"],
+                                    "labels": {
+                                        "__meta_server_name": f"physical-{ip.replace('.', '-')}",
+                                        "__meta_server_ip": str(ip),
+                                        "__meta_server_os": "unknown",  # Could be enhanced
+                                        "__meta_server_type": "physical",
+                                        "__meta_monitored_by": "optimon"
+                                    }
+                                }
+                                targets.append(target_info)
+                        except:
+                            pass
+                    
+                    count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error in prometheus discovery for network {network_range}: {e}")
+                continue
+        
+        # Return in Prometheus HTTP Service Discovery format
+        return jsonify(targets)
+        
+    except Exception as e:
+        logger.error(f"Error in prometheus service discovery: {e}")
+        return jsonify([]), 500
+
 # ===== FUNCIONES AUXILIARES =====
+
+def get_local_network_ranges():
+    """Get local network ranges for discovery"""
+    ranges = []
+    try:
+        import psutil
+        
+        # Get network interfaces
+        for interface, addrs in psutil.net_if_addrs().items():
+            for addr in addrs:
+                if addr.family == socket.AF_INET and not addr.address.startswith('127.'):
+                    try:
+                        # Calculate network range
+                        ip = ipaddress.IPv4Address(addr.address)
+                        netmask = ipaddress.IPv4Address(addr.netmask)
+                        
+                        # Create network from IP and netmask
+                        network = ipaddress.IPv4Network(f"{addr.address}/{addr.netmask}", strict=False)
+                        ranges.append(str(network))
+                        
+                    except Exception as e:
+                        logger.debug(f"Error processing interface {interface}: {e}")
+                        continue
+        
+        # Add common ranges if none found
+        if not ranges:
+            ranges = ['192.168.1.0/24', '192.168.0.0/24', '10.0.0.0/24']
+            
+    except Exception as e:
+        logger.error(f"Error getting network ranges: {e}")
+        ranges = ['192.168.1.0/24', '192.168.0.0/24']
+    
+    return ranges
+
+def check_node_exporter(ip, port=9100):
+    """Check if Node Exporter is running on given IP"""
+    try:
+        response = requests.get(f"http://{ip}:{port}/metrics", timeout=2)
+        return response.status_code == 200 and 'node_' in response.text
+    except:
+        return False
+
+def get_server_info(ip):
+    """Get basic server information from Node Exporter"""
+    try:
+        # Get metrics
+        response = requests.get(f"http://{ip}:9100/metrics", timeout=5)
+        metrics_text = response.text
+        
+        # Parse basic info from metrics
+        hostname = 'unknown'
+        os_info = 'unknown'
+        
+        for line in metrics_text.split('\n'):
+            if 'node_uname_info' in line and '{' in line:
+                # Extract hostname and OS from node_uname_info
+                parts = line.split('{')[1].split('}')[0]
+                for part in parts.split(','):
+                    if 'nodename=' in part:
+                        hostname = part.split('=')[1].strip('"')
+                    elif 'sysname=' in part:
+                        os_info = part.split('=')[1].strip('"')
+                break
+        
+        return {
+            'ip': ip,
+            'hostname': hostname,
+            'os': os_info,
+            'metrics_url': f"http://{ip}:9100/metrics",
+            'status': 'active',
+            'last_seen': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting server info for {ip}: {e}")
+        return {
+            'ip': ip,
+            'hostname': 'unknown',
+            'os': 'unknown',
+            'metrics_url': f"http://{ip}:9100/metrics", 
+            'status': 'error',
+            'error': str(e)
+        }
+
+def get_server_detailed_info(ip):
+    """Get detailed server information from Node Exporter metrics"""
+    try:
+        response = requests.get(f"http://{ip}:9100/metrics", timeout=5)
+        metrics_text = response.text
+        
+        # Initialize info structure
+        info = {
+            'ip': ip,
+            'hostname': 'unknown',
+            'os': 'unknown',
+            'architecture': 'unknown',
+            'cpu_cores': 0,
+            'memory_total': 0,
+            'disk_total': 0,
+            'uptime': 0,
+            'metrics_count': 0,
+            'last_updated': datetime.now().isoformat()
+        }
+        
+        # Parse metrics
+        for line in metrics_text.split('\n'):
+            if line.startswith('#') or not line.strip():
+                continue
+                
+            if 'node_uname_info' in line and '{' in line:
+                # Extract system info
+                parts = line.split('{')[1].split('}')[0]
+                for part in parts.split(','):
+                    if 'nodename=' in part:
+                        info['hostname'] = part.split('=')[1].strip('"')
+                    elif 'sysname=' in part:
+                        info['os'] = part.split('=')[1].strip('"')
+                    elif 'machine=' in part:
+                        info['architecture'] = part.split('=')[1].strip('"')
+                        
+            elif 'node_cpu_seconds_total' in line and 'cpu="0"' in line and 'mode="idle"' in line:
+                # Count CPU cores
+                info['cpu_cores'] += 1
+                
+            elif line.startswith('node_memory_MemTotal_bytes'):
+                # Total memory
+                try:
+                    info['memory_total'] = int(float(line.split()[-1]))
+                except:
+                    pass
+                    
+            elif line.startswith('node_filesystem_size_bytes') and 'fstype="ext4"' in line:
+                # Disk space (just first ext4 filesystem)
+                try:
+                    info['disk_total'] = int(float(line.split()[-1]))
+                except:
+                    pass
+                    
+            elif line.startswith('node_boot_time_seconds'):
+                # Calculate uptime
+                try:
+                    boot_time = float(line.split()[-1])
+                    info['uptime'] = int(time.time() - boot_time)
+                except:
+                    pass
+        
+        # Count total metrics
+        info['metrics_count'] = len([line for line in metrics_text.split('\n') 
+                                   if line.strip() and not line.startswith('#')])
+        
+        return info
+        
+    except Exception as e:
+        logger.error(f"Error getting detailed server info for {ip}: {e}")
+        return {'error': str(e), 'ip': ip}
 
 def check_port_status(host, port):
     """Verificar si un puerto está activo"""
@@ -422,6 +731,38 @@ def check_port_status(host, port):
     except:
         return False
 
+def check_email_service_health():
+    """Verificar el estado del servicio de email de manera más robusta"""
+    try:
+        # Verificar configuración SMTP
+        smtp_config = load_smtp_config()
+        
+        # Si no hay configuración, usar la configuración predeterminada de Gmail
+        if not smtp_config.get('username') or not smtp_config.get('password'):
+            logger.info("📧 Usando configuración SMTP predeterminada de OptiMon (Gmail integrado)")
+            # Retornar True porque tenemos configuración predeterminada funcional
+            return True
+        
+        # Si hay configuración personalizada, verificar que esté completa
+        # Verificar los campos correctos según la configuración actual
+        required_fields = ['host', 'port', 'username', 'password']
+        if all(smtp_config.get(field) for field in required_fields):
+            logger.info("✅ Configuración SMTP completa encontrada")
+            return True
+        
+        # Verificar también formato alternativo para compatibilidad
+        required_fields_alt = ['smtp_server', 'smtp_port', 'username', 'password']
+        if all(smtp_config.get(field) for field in required_fields_alt):
+            logger.info("✅ Configuración SMTP alternativa encontrada")
+            return True
+        
+        logger.warning("❌ Configuración SMTP incompleta")
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error verificando servicio de email: {e}")
+        return False
+
 def get_all_services_status():
     """Obtener estado de todos los servicios"""
     services = {
@@ -431,7 +772,7 @@ def get_all_services_status():
             'alertmanager': {'port': 9093, 'status': check_port_status('localhost', 9093)}
         },
         'monitoring_services': {
-            'email_service': {'port': 5555, 'status': check_port_status('localhost', 5555)},
+            'email_service': {'port': 'SMTP', 'status': check_email_service_health()},
             'windows_exporter': {'port': 9182, 'status': check_port_status('localhost', 9182)}
         },
         'docker_services': {}
@@ -1089,12 +1430,17 @@ def discover_aws_instances():
                 'error': 'Biblioteca boto3 no instalada. Ejecute: pip install boto3'
             }
         
-        # Configurar cliente EC2
+        # Configurar cliente EC2 con timeout
         ec2_client = boto3.client(
             'ec2',
             aws_access_key_id=aws_config['access_key'],
             aws_secret_access_key=aws_config['secret_key'],
-            region_name=aws_config.get('region', 'us-east-1')
+            region_name=aws_config.get('region', 'us-east-1'),
+            config=boto3.session.Config(
+                read_timeout=30,     # Timeout de lectura
+                connect_timeout=10,  # Timeout de conexión
+                retries={'max_attempts': 1}  # Sin reintentos
+            )
         )
         
         # Descubrir instancias en ejecución
@@ -1613,17 +1959,22 @@ def install_node_exporter_ssh(instance_info):
         
         logger.info(f"🔍 Probando {len(ssh_key_paths)} claves SSH encontradas...")
         
-        # Intentar conexión SSH con diferentes usuarios y claves
+        # Intentar conexión SSH con usuarios más comunes (optimizado)
         users_to_try = [
-            'azureuser', 'ubuntu', 'ec2-user', 'admin', 'root',
-            'centos', 'debian', 'fedora', 'oracle', 'bitnami',
-            'administrator', 'user', 'student', 'deploy'
-        ]
+            'ec2-user',    # AWS principal
+            'azureuser',   # Azure principal  
+            'ubuntu',      # Ubuntu instances
+            'admin',       # Genérico
+            'root'         # Linux estándar
+        ]  # Reducido de 14 a 5 usuarios para AWS/Azure
         
         connection_attempts = 0
-        max_attempts = len(ssh_key_paths) * len(users_to_try)
+        max_attempts = min(20, len(ssh_key_paths) * len(users_to_try))  # Máximo 20 intentos
         
         for ssh_key in ssh_key_paths:
+            if connection_attempts >= max_attempts:
+                logger.warning(f"🔄 Límite de intentos alcanzado ({max_attempts}) para {target_ip}")
+                break
             logger.info(f"🔑 Probando clave: {os.path.basename(ssh_key)}")
             
             for username in users_to_try:
@@ -1658,15 +2009,15 @@ def install_node_exporter_ssh(instance_info):
                     if not private_key:
                         continue
                     
-                    # Conectar con timeout más largo
+                    # Conectar con timeout optimizado
                     ssh.connect(
                         hostname=target_ip,
                         username=username,
                         pkey=private_key,
-                        timeout=15,
+                        timeout=5,  # Reducido de 15 a 5 segundos
                         allow_agent=False,
                         look_for_keys=False,
-                        banner_timeout=30
+                        banner_timeout=10  # Reducido de 30 a 10 segundos
                     )
                     
                     logger.info(f"🎉 ¡Conexión exitosa! {username}@{target_ip} con {os.path.basename(ssh_key)}")
@@ -1951,12 +2302,2266 @@ def check_port_status(ip, port):
     except:
         return False
 
+# ===== SISTEMA DE EMAIL INTEGRADO =====
+
+def load_smtp_config():
+    """Cargar configuración SMTP - Usa configuración predeterminada si no existe personalizada"""
+    try:
+        if EMAIL_SMTP_CONFIG.exists():
+            with open(EMAIL_SMTP_CONFIG, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                # Si existe configuración personalizada, la usa
+                merged_config = {**DEFAULT_SMTP_CONFIG, **config}
+                merged_config['configured'] = True
+                return merged_config
+        # Si no existe configuración personalizada, usa la predeterminada funcional
+        logger.info("📧 Usando configuración SMTP predeterminada de OptiMon (Gmail integrado)")
+        return DEFAULT_SMTP_CONFIG.copy()
+    except Exception as e:
+        logger.error(f"Error cargando configuración SMTP: {e}")
+        return DEFAULT_SMTP_CONFIG.copy()
+
+def save_smtp_config(config):
+    """Guardar configuración SMTP"""
+    try:
+        with open(EMAIL_SMTP_CONFIG, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"Error guardando configuración SMTP: {e}")
+        return False
+
+def load_email_recipients():
+    """Cargar lista de destinatarios"""
+    try:
+        if EMAILS_CONFIG.exists():
+            with open(EMAILS_CONFIG, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                if isinstance(config, dict) and 'recipients' in config:
+                    recipients = config['recipients']
+                    # Manejar ambos formatos
+                    if recipients and isinstance(recipients[0], str):
+                        # Formato simple: lista de emails
+                        return [email for email in recipients if email]
+                    else:
+                        # Formato completo: lista de objetos
+                        return [r['email'] for r in recipients if r.get('active', True)]
+                elif isinstance(config, list):
+                    return [email for email in config if email]
+        return []
+    except Exception as e:
+        logger.error(f"Error cargando destinatarios: {e}")
+        return []
+
+def save_email_recipients(recipients):
+    """Guardar lista de destinatarios"""
+    try:
+        config = {
+            'recipients': [{'email': email.strip(), 'active': True} for email in recipients if email.strip()],
+            'updated': datetime.now().isoformat()
+        }
+        with open(EMAILS_CONFIG, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"Error guardando destinatarios: {e}")
+        return False
+
+def send_email(to_email, subject, html_content, smtp_config=None):
+    """Enviar email usando configuración SMTP"""
+    if not smtp_config:
+        smtp_config = load_smtp_config()
+    
+    # Verificar configuración
+    if not smtp_config.get('username') or not smtp_config.get('password'):
+        logger.error("❌ Configuración SMTP incompleta")
+        return False, "Configuración SMTP incompleta"
+    
+    try:
+        # Configurar mensaje con email personalizable
+        display_name = smtp_config.get('from_name', 'OptiMon Sistema')
+        from_email = smtp_config.get('from_email', smtp_config['username'])
+        
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"{display_name} <{from_email}>"
+        msg['To'] = to_email
+        msg['Date'] = email.utils.formatdate(localtime=True)
+        
+        # Crear versión HTML
+        html_part = MIMEText(html_content, 'html', 'utf-8')
+        msg.attach(html_part)
+        
+        # Conectar y enviar
+        logger.info(f"📧 Enviando email a {to_email}...")
+        
+        with smtplib.SMTP(smtp_config['host'], smtp_config['port']) as server:
+            server.set_debuglevel(0)
+            
+            if smtp_config.get('use_tls', True):
+                server.starttls()
+            
+            server.login(smtp_config['username'], smtp_config['password'])
+            server.send_message(msg)
+            
+        logger.info(f"✅ Email enviado exitosamente a {to_email}")
+        return True, "Email enviado exitosamente"
+        
+    except smtplib.SMTPAuthenticationError:
+        error_msg = "Error de autenticación SMTP - Verificar credenciales"
+        logger.error(f"❌ {error_msg}")
+        return False, error_msg
+    except smtplib.SMTPRecipientsRefused:
+        error_msg = f"Destinatario rechazado: {to_email}"
+        logger.error(f"❌ {error_msg}")
+        return False, error_msg
+    except smtplib.SMTPException as e:
+        error_msg = f"Error SMTP: {e}"
+        logger.error(f"❌ {error_msg}")
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Error enviando email: {e}"
+        logger.error(f"❌ {error_msg}")
+        return False, error_msg
+
+def generate_alert_html(alerts):
+    """Generar HTML para alertas con diseño mejorado"""
+    
+    # Determinar severidad general
+    severity = 'info'
+    for alert in alerts:
+        alert_severity = alert.get('labels', {}).get('severity', 'info')
+        if alert_severity == 'critical':
+            severity = 'critical'
+            break
+        elif alert_severity == 'warning' and severity != 'critical':
+            severity = 'warning'
+    
+    # Configurar colores según severidad
+    if severity == 'critical':
+        bg_color = '#dc3545'
+        border_color = '#dc3545'
+        emoji = '🚨'
+    elif severity == 'warning':
+        bg_color = '#fd7e14'
+        border_color = '#fd7e14'
+        emoji = '⚠️'
+    else:
+        bg_color = '#20c997'
+        border_color = '#20c997'
+        emoji = 'ℹ️'
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>OptiMon Alert</title>
+        <style>
+            body {{ 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                margin: 0; 
+                padding: 20px; 
+                background-color: #f8f9fa;
+                line-height: 1.6;
+            }}
+            .container {{ 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background-color: white; 
+                border-radius: 10px; 
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }}
+            .header {{ 
+                background-color: {bg_color}; 
+                color: white; 
+                padding: 30px 20px; 
+                text-align: center;
+                background-image: linear-gradient(135deg, {bg_color} 0%, {bg_color}CC 100%);
+            }}
+            .header h1 {{ 
+                margin: 0; 
+                font-size: 24px; 
+                font-weight: 600;
+            }}
+            .content {{ 
+                padding: 30px 20px; 
+            }}
+            .alert {{ 
+                border: 1px solid #e9ecef; 
+                margin: 15px 0; 
+                padding: 20px; 
+                border-radius: 8px; 
+                border-left: 5px solid {border_color};
+                background-color: #f8f9fa;
+            }}
+            .alert-title {{ 
+                font-weight: 600; 
+                font-size: 18px; 
+                color: #343a40;
+                margin-bottom: 10px;
+            }}
+            .alert-description {{ 
+                color: #6c757d; 
+                margin-bottom: 15px;
+            }}
+            .alert-details {{ 
+                background-color: white; 
+                padding: 15px; 
+                border-radius: 5px; 
+                border: 1px solid #dee2e6;
+            }}
+            .detail-row {{ 
+                display: flex; 
+                justify-content: space-between; 
+                margin-bottom: 8px;
+                padding: 5px 0;
+                border-bottom: 1px solid #f8f9fa;
+            }}
+            .detail-row:last-child {{ 
+                border-bottom: none; 
+                margin-bottom: 0;
+            }}
+            .detail-label {{ 
+                font-weight: 600; 
+                color: #495057;
+            }}
+            .detail-value {{ 
+                color: #6c757d;
+                word-break: break-word;
+            }}
+            .footer {{ 
+                background-color: #f8f9fa; 
+                padding: 20px; 
+                text-align: center; 
+                border-top: 1px solid #dee2e6;
+                color: #6c757d; 
+                font-size: 12px;
+            }}
+            .timestamp {{ 
+                background-color: #e9ecef; 
+                padding: 10px; 
+                border-radius: 5px; 
+                text-align: center; 
+                margin-top: 20px;
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                color: #495057;
+            }}
+            .severity-badge {{
+                display: inline-block;
+                padding: 4px 12px;
+                background-color: {border_color};
+                color: white;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
+                margin-left: 10px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>{emoji} OptiMon Sistema de Alertas</h1>
+                <div style="margin-top: 10px; font-size: 16px; opacity: 0.9;">
+                    {len(alerts)} Alerta{'s' if len(alerts) != 1 else ''} - Severidad: {severity.title()}
+                    <span class="severity-badge">{severity.upper()}</span>
+                </div>
+            </div>
+            
+            <div class="content">"""
+    
+    # Agregar cada alerta
+    for i, alert in enumerate(alerts, 1):
+        alert_name = alert.get('labels', {}).get('alertname', 'Unknown Alert')
+        alert_summary = alert.get('annotations', {}).get('summary', 'No summary available')
+        alert_description = alert.get('annotations', {}).get('description', 'No description available')
+        alert_instance = alert.get('labels', {}).get('instance', 'Unknown instance')
+        alert_job = alert.get('labels', {}).get('job', 'Unknown job')
+        alert_severity = alert.get('labels', {}).get('severity', 'info')
+        start_time = alert.get('startsAt', datetime.now().isoformat())
+        
+        html += f"""
+                <div class="alert">
+                    <div class="alert-title">
+                        🔔 Alerta #{i}: {alert_name}
+                    </div>
+                    <div class="alert-description">
+                        <strong>Resumen:</strong> {alert_summary}<br>
+                        <strong>Descripción:</strong> {alert_description}
+                    </div>
+                    <div class="alert-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Severidad:</span>
+                            <span class="detail-value">{alert_severity.upper()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Instancia:</span>
+                            <span class="detail-value">{alert_instance}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Job:</span>
+                            <span class="detail-value">{alert_job}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Tiempo de inicio:</span>
+                            <span class="detail-value">{start_time}</span>
+                        </div>
+                    </div>
+                </div>"""
+    
+    html += f"""
+            </div>
+            
+            <div class="footer">
+                <div style="font-weight: 600; margin-bottom: 10px;">
+                    OptiMon - Sistema de Monitoreo Unificado
+                </div>
+                <div>
+                    Este email fue generado automáticamente por el sistema de alertas<br>
+                    Versión 3.0.0-UNIFIED | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+                    📊 <a href="http://localhost:3000" style="color: {border_color};">Grafana Dashboard</a> | 
+                    🔍 <a href="http://localhost:9090" style="color: {border_color};">Prometheus</a> | 
+                    🎛️ <a href="http://localhost:5000" style="color: {border_color};">Panel de Control</a>
+                </div>
+                
+                <div class="timestamp">
+                    Generado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 
+                    ID: {datetime.now().strftime('%Y%m%d%H%M%S')}
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>"""
+    
+    return html
+
+def generate_notification_html(title, message, notification_type="info"):
+    """Generar HTML para notificaciones generales"""
+    
+    # Configurar colores según tipo
+    if notification_type == 'success':
+        bg_color = '#28a745'
+        emoji = '✅'
+    elif notification_type == 'warning':
+        bg_color = '#ffc107'
+        emoji = '⚠️'
+    elif notification_type == 'error':
+        bg_color = '#dc3545'
+        emoji = '❌'
+    else:
+        bg_color = '#17a2b8'
+        emoji = 'ℹ️'
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>OptiMon Notification</title>
+        <style>
+            body {{ 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                margin: 0; 
+                padding: 20px; 
+                background-color: #f8f9fa;
+                line-height: 1.6;
+            }}
+            .container {{ 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background-color: white; 
+                border-radius: 10px; 
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }}
+            .header {{ 
+                background-color: {bg_color}; 
+                color: white; 
+                padding: 30px 20px; 
+                text-align: center;
+            }}
+            .header h1 {{ 
+                margin: 0; 
+                font-size: 24px; 
+                font-weight: 600;
+            }}
+            .content {{ 
+                padding: 30px 20px; 
+            }}
+            .message-box {{ 
+                background-color: #f8f9fa; 
+                padding: 20px; 
+                border-radius: 8px; 
+                border-left: 5px solid {bg_color};
+                margin: 20px 0;
+            }}
+            .footer {{ 
+                background-color: #f8f9fa; 
+                padding: 20px; 
+                text-align: center; 
+                border-top: 1px solid #dee2e6;
+                color: #6c757d; 
+                font-size: 12px;
+            }}
+            .timestamp {{ 
+                background-color: #e9ecef; 
+                padding: 10px; 
+                border-radius: 5px; 
+                text-align: center; 
+                margin-top: 20px;
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                color: #495057;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>{emoji} {title}</h1>
+            </div>
+            
+            <div class="content">
+                <div class="message-box">
+                    {message}
+                </div>
+            </div>
+            
+            <div class="footer">
+                <div style="font-weight: 600; margin-bottom: 10px;">
+                    OptiMon - Sistema de Monitoreo Unificado
+                </div>
+                <div>
+                    Notificación generada automáticamente<br>
+                    Versión 3.0.0-UNIFIED | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+                    📊 <a href="http://localhost:3000" style="color: {bg_color};">Grafana Dashboard</a> | 
+                    🔍 <a href="http://localhost:9090" style="color: {bg_color};">Prometheus</a> | 
+                    🎛️ <a href="http://localhost:5000" style="color: {bg_color};">Panel de Control</a>
+                </div>
+                
+                <div class="timestamp">
+                    Generado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 
+                    ID: {datetime.now().strftime('%Y%m%d%H%M%S')}
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>"""
+    
+    return html
+
+# ===== ENDPOINTS DE EMAIL =====
+
+@app.route('/api/email/config', methods=['GET', 'POST'])
+def email_config_api():
+    """API para configuración de email"""
+    if request.method == 'GET':
+        smtp_config = load_smtp_config()
+        recipients = load_email_recipients()
+        
+        # No enviar password en GET
+        safe_config = smtp_config.copy()
+        safe_config['password'] = '***' if smtp_config.get('password') else ''
+        
+        # Verificar si es configuración automática Gmail real
+        is_default = smtp_config.get('service') == 'gmail_real' or smtp_config.get('username') == 'wacry77@gmail.com'
+        
+        return jsonify({
+            'success': True,
+            'smtp': safe_config,
+            'recipients': recipients,
+            'configured': bool(smtp_config.get('username') and smtp_config.get('password')),
+            'is_default': is_default,
+            'default_ready': True  # Siempre listo con configuración predeterminada
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Actualizar SMTP
+            if 'smtp' in data:
+                current_config = load_smtp_config()
+                smtp_data = data['smtp']
+                
+                # Solo actualizar password si se proporciona y no es la máscara
+                if smtp_data.get('password') and smtp_data['password'] != '***':
+                    current_config['password'] = smtp_data['password']
+                
+                # Actualizar otros campos
+                for key in ['host', 'port', 'username', 'use_tls', 'from_name', 'timeout']:
+                    if key in smtp_data:
+                        current_config[key] = smtp_data[key]
+                
+                save_smtp_config(current_config)
+            
+            # Actualizar destinatarios
+            if 'recipients' in data:
+                save_email_recipients(data['recipients'])
+            
+            return jsonify({
+                'success': True,
+                'message': 'Configuración de email actualizada correctamente'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error actualizando configuración email: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+@app.route('/api/email/test', methods=['POST'])
+def test_email_config():
+    """Probar configuración de email"""
+    try:
+        data = request.get_json()
+        test_email_addr = data.get('email', 'test@example.com')
+        
+        # Generar email de prueba
+        html_content = generate_notification_html(
+            "Prueba de Email OptiMon",
+            """
+            <h3>¡Configuración SMTP Exitosa! 🎉</h3>
+            <p>Este es un email de prueba enviado desde OptiMon Sistema Unificado.</p>
+            <p><strong>Detalles de la prueba:</strong></p>
+            <ul>
+                <li>Fecha: {}</li>
+                <li>Sistema: OptiMon v3.0.0-UNIFIED</li>
+                <li>Funcionalidad: Test de configuración SMTP</li>
+            </ul>
+            <p>Si recibes este email, la configuración está funcionando correctamente.</p>
+            """.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            "success"
+        )
+        
+        success, message = send_email(
+            test_email_addr,
+            "✅ Prueba de Email OptiMon - Sistema Funcional",
+            html_content
+        )
+        
+        return jsonify({
+            'success': success,
+            'message': message
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en prueba de email: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/email/send', methods=['POST'])
+def send_custom_email():
+    """Enviar email personalizado"""
+    try:
+        data = request.get_json()
+        
+        to_email = data.get('to_email')
+        subject = data.get('subject', 'OptiMon Notification')
+        message = data.get('message', '')
+        notification_type = data.get('type', 'info')
+        
+        if not to_email:
+            return jsonify({
+                'success': False,
+                'error': 'Email destinatario requerido'
+            }), 400
+        
+        # Generar HTML
+        html_content = generate_notification_html(subject, message, notification_type)
+        
+        success, result_message = send_email(to_email, subject, html_content)
+        
+        return jsonify({
+            'success': success,
+            'message': result_message
+        })
+        
+    except Exception as e:
+        logger.error(f"Error enviando email personalizado: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/email/send-alert', methods=['POST'])
+def send_alert_email():
+    """Endpoint para recibir alertas de AlertManager"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'alerts' not in data:
+            return jsonify({'error': 'No alerts data provided'}), 400
+        
+        alerts = data['alerts']
+        recipients = load_email_recipients()
+        
+        if not recipients:
+            logger.warning("⚠️ No hay destinatarios configurados para alertas")
+            return jsonify({
+                'success': True,
+                'message': 'No recipients configured',
+                'sent': 0
+            })
+        
+        # Generar HTML de alerta
+        html_content = generate_alert_html(alerts)
+        
+        # Determinar asunto según severidad
+        severity = 'info'
+        for alert in alerts:
+            alert_severity = alert.get('labels', {}).get('severity', 'info')
+            if alert_severity == 'critical':
+                severity = 'critical'
+                break
+            elif alert_severity == 'warning' and severity != 'critical':
+                severity = 'warning'
+        
+        alert_name = alerts[0].get('labels', {}).get('alertname', 'Multiple Alerts') if alerts else 'Alert'
+        
+        if severity == 'critical':
+            subject = f"🚨 [CRÍTICO] OptiMon: {alert_name}"
+        elif severity == 'warning':
+            subject = f"⚠️ [ADVERTENCIA] OptiMon: {alert_name}"
+        else:
+            subject = f"ℹ️ [INFO] OptiMon: {alert_name}"
+        
+        # Enviar a todos los destinatarios
+        sent_count = 0
+        failed_count = 0
+        
+        for recipient_email in recipients:
+            success, _ = send_email(recipient_email, subject, html_content)
+            if success:
+                sent_count += 1
+            else:
+                failed_count += 1
+        
+        logger.info(f"📊 Alertas enviadas: {sent_count} exitosos, {failed_count} fallidos")
+        
+        return jsonify({
+            'success': True,
+            'sent': sent_count,
+            'failed': failed_count,
+            'message': f'Alertas enviadas a {sent_count} destinatarios',
+            'severity': severity,
+            'alert_name': alert_name
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error procesando alerta: {e}")
+        return jsonify({'error': str(e)}), 500
+
+def load_custom_alerts():
+    """Cargar alertas personalizadas"""
+    try:
+        if CUSTOM_ALERTS_CONFIG.exists():
+            with open(CUSTOM_ALERTS_CONFIG, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return []
+    except Exception as e:
+        logger.error(f"Error cargando alertas personalizadas: {e}")
+        return []
+
+def save_custom_alerts(alerts):
+    """Guardar alertas personalizadas"""
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CUSTOM_ALERTS_CONFIG, 'w', encoding='utf-8') as f:
+            json.dump(alerts, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"Error guardando alertas personalizadas: {e}")
+        return False
+
+@app.route('/custom-alerts')
+def custom_alerts_page():
+    """Página de gestión de alertas personalizadas"""
+    try:
+        custom_alerts = load_custom_alerts()
+        return render_template('custom_alerts.html', alerts=custom_alerts)
+    except Exception as e:
+        logger.error(f"Error en página de alertas personalizadas: {e}")
+        return render_template('error.html', error=str(e))
+
+@app.route('/api/custom-alerts', methods=['GET'])
+def get_custom_alerts():
+    """Obtener alertas personalizadas"""
+    try:
+        alerts = load_custom_alerts()
+        return jsonify({'alerts': alerts})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/custom-alerts', methods=['POST'])
+def add_custom_alert():
+    """Agregar nueva alerta personalizada"""
+    try:
+        data = request.get_json()
+        
+        # Validar datos requeridos
+        required_fields = ['name', 'metric', 'threshold', 'operator', 'severity', 'resource_type', 'resource_name']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'Campo requerido: {field}'}), 400
+        
+        # Cargar alertas existentes
+        alerts = load_custom_alerts()
+        
+        # Verificar que no exista una alerta con el mismo nombre
+        if any(alert['name'] == data['name'] for alert in alerts):
+            return jsonify({'error': 'Ya existe una alerta con ese nombre'}), 400
+        
+        # Crear nueva alerta
+        new_alert = {
+            'id': len(alerts) + 1,
+            'name': data['name'],
+            'description': data.get('description', ''),
+            'metric': data['metric'],
+            'threshold': float(data['threshold']),
+            'operator': data['operator'],  # >, <, >=, <=, ==
+            'severity': data['severity'],  # info, warning, critical
+            'enabled': data.get('enabled', True),
+            'created_at': datetime.now().isoformat(),
+            'tags': data.get('tags', []),
+            'notification_channels': data.get('notification_channels', ['email']),
+            # Información de la fuente mejorada
+            'resource_type': data['resource_type'],
+            'resource_name': data['resource_name'],
+            'resource_ip': data.get('resource_ip', ''),
+            'region': data.get('region', ''),
+            'environment': data.get('environment', ''),
+            'resource_details': data.get('resource_details', '')
+        }
+        
+        alerts.append(new_alert)
+        
+        if save_custom_alerts(alerts):
+            return jsonify({
+                'success': True,
+                'message': 'Alerta personalizada creada exitosamente',
+                'alert': new_alert
+            })
+        else:
+            return jsonify({'error': 'Error guardando la alerta'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error agregando alerta personalizada: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/custom-alerts/<int:alert_id>', methods=['PUT'])
+def update_custom_alert(alert_id):
+    """Actualizar alerta personalizada"""
+    try:
+        data = request.get_json()
+        alerts = load_custom_alerts()
+        
+        # Encontrar la alerta
+        alert_index = None
+        for i, alert in enumerate(alerts):
+            if alert['id'] == alert_id:
+                alert_index = i
+                break
+        
+        if alert_index is None:
+            return jsonify({'error': 'Alerta no encontrada'}), 404
+        
+        # Actualizar campos
+        updatable_fields = ['name', 'description', 'metric', 'threshold', 'operator', 'severity', 'enabled', 'tags', 'notification_channels', 'resource_type', 'resource_name', 'resource_ip', 'region', 'environment', 'resource_details']
+        for field in updatable_fields:
+            if field in data:
+                if field == 'threshold':
+                    alerts[alert_index][field] = float(data[field])
+                else:
+                    alerts[alert_index][field] = data[field]
+        
+        alerts[alert_index]['updated_at'] = datetime.now().isoformat()
+        
+        if save_custom_alerts(alerts):
+            return jsonify({
+                'success': True,
+                'message': 'Alerta actualizada exitosamente',
+                'alert': alerts[alert_index]
+            })
+        else:
+            return jsonify({'error': 'Error guardando la alerta'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error actualizando alerta personalizada: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/custom-alerts/<int:alert_id>', methods=['DELETE'])
+def delete_custom_alert(alert_id):
+    """Eliminar alerta personalizada"""
+    try:
+        alerts = load_custom_alerts()
+        
+        # Filtrar la alerta a eliminar
+        original_count = len(alerts)
+        alerts = [alert for alert in alerts if alert['id'] != alert_id]
+        
+        if len(alerts) == original_count:
+            return jsonify({'error': 'Alerta no encontrada'}), 404
+        
+        if save_custom_alerts(alerts):
+            return jsonify({
+                'success': True,
+                'message': 'Alerta eliminada exitosamente'
+            })
+        else:
+            return jsonify({'error': 'Error eliminando la alerta'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error eliminando alerta personalizada: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/custom-alerts/<int:alert_id>/test', methods=['POST'])
+def test_custom_alert(alert_id):
+    """Probar alerta personalizada"""
+    try:
+        alerts = load_custom_alerts()
+        alert = None
+        
+        for a in alerts:
+            if a['id'] == alert_id:
+                alert = a
+                break
+        
+        if not alert:
+            return jsonify({'error': 'Alerta no encontrada'}), 404
+        
+        # Simular datos de la alerta
+        test_value = alert['threshold'] + (1 if alert['operator'] in ['>', '>='] else -1)
+        
+        # Crear información detallada de la fuente
+        resource_info = {
+            "type": alert.get('resource_type', 'unknown'),
+            "name": alert.get('resource_name', 'test-resource'),
+            "ip": alert.get('resource_ip', 'N/A'),
+            "region": alert.get('region', 'N/A'),
+            "environment": alert.get('environment', 'test')
+        }
+        
+        # Parsear detalles adicionales si están disponibles
+        resource_details_str = alert.get('resource_details', '')
+        resource_extra = {}
+        if resource_details_str:
+            try:
+                resource_extra = json.loads(resource_details_str)
+            except:
+                pass
+        
+        # Determinar el icono y descripción según el tipo de recurso
+        resource_icons = {
+            "aws_ec2": "☁️ AWS EC2",
+            "aws_rds": "🗄️ AWS RDS", 
+            "aws_elb": "⚖️ AWS ELB",
+            "azure_vm": "☁️ Azure VM",
+            "azure_sql": "🗄️ Azure SQL",
+            "physical_server": "🖥️ Servidor Físico",
+            "vm_local": "💻 VM Local",
+            "container": "📦 Container",
+            "kubernetes": "⚡ Kubernetes",
+            "application": "🌐 Aplicación"
+        }
+        
+        resource_display = resource_icons.get(resource_info["type"], "🖥️ Recurso")
+        
+        # Crear descripción detallada con información de red e infraestructura
+        detailed_description = f"📍 **Fuente de la Alerta:**\n"
+        detailed_description += f"🎯 Recurso: {resource_display} - {resource_info['name']}\n"
+        
+        if resource_info['ip'] != 'N/A':
+            detailed_description += f"🌐 IP: {resource_info['ip']}\n"
+        
+        if resource_info['region'] != 'N/A':
+            detailed_description += f"🌍 Región/Zona: {resource_info['region']}\n"
+            
+        if resource_info['environment'] != 'test':
+            detailed_description += f"🏷️ Ambiente: {resource_info['environment']}\n"
+        
+        # Agregar detalles específicos según el tipo de recurso
+        if resource_extra:
+            if resource_info["type"] == "aws_ec2":
+                detailed_description += f"🔧 Tipo de Instancia: {resource_extra.get('type', 'N/A')}\n"
+                detailed_description += f"🔄 Estado: {resource_extra.get('state', 'N/A')}\n"
+                if resource_extra.get('public_ip', 'N/A') != 'N/A':
+                    detailed_description += f"🌍 IP Pública: {resource_extra.get('public_ip')}\n"
+            elif resource_info["type"] == "azure_vm":
+                detailed_description += f"🔧 Tamaño VM: {resource_extra.get('type', 'N/A')}\n"
+                detailed_description += f"📦 Grupo de Recursos: {resource_extra.get('resource_group', 'N/A')}\n"
+                if resource_extra.get('public_ip', 'N/A') != 'N/A':
+                    detailed_description += f"🌍 IP Pública: {resource_extra.get('public_ip')}\n"
+        
+        detailed_description += f"\n📊 **Información de la Métrica:**\n"
+        detailed_description += f"📈 Métrica: {alert['metric']}\n"
+        detailed_description += f"⚖️ Valor Actual: {test_value}\n"
+        detailed_description += f"⚠️ Umbral Configurado: {alert['operator']} {alert['threshold']}\n"
+        detailed_description += f"🚨 Nivel de Severidad: {alert['severity'].upper()}\n\n"
+        detailed_description += f"� Descripción: {alert.get('description', 'Alerta de prueba personalizada')}"
+        
+        alert_data = {
+            "alerts": [
+                {
+                    "labels": {
+                        "alertname": alert['name'],
+                        "severity": alert['severity'],
+                        "instance": resource_info["name"],
+                        "resource_type": resource_info["type"],
+                        "region": resource_info["region"],
+                        "environment": resource_info["environment"],
+                        "ip_address": resource_info["ip"]
+                    },
+                    "annotations": {
+                        "summary": f"🧪 [PRUEBA] {alert['name']}: {alert['metric']} {alert['operator']} {alert['threshold']}",
+                        "description": detailed_description,
+                        "resource_name": resource_info["name"],
+                        "resource_type": resource_info["type"],
+                        "resource_ip": resource_info["ip"],
+                        "test_value": str(test_value)
+                    },
+                    "startsAt": datetime.now().isoformat(),
+                    "status": "firing",
+                    "generatorURL": "http://localhost:5000/custom-alerts"
+                }
+            ]
+        }
+        
+        # Enviar alerta usando el endpoint existente
+        recipients = load_email_recipients()
+        if not recipients:
+            return jsonify({
+                'success': False,
+                'message': 'No hay destinatarios configurados'
+            })
+        
+        # Generar HTML de alerta
+        html_content = generate_alert_html(alert_data['alerts'])
+        
+        subject = f"🧪 [PRUEBA] OptiMon: {alert['name']}"
+        
+        # Enviar a todos los destinatarios
+        sent_count = 0
+        for recipient_email in recipients:
+            success, _ = send_email(recipient_email, subject, html_content)
+            if success:
+                sent_count += 1
+        
+        return jsonify({
+            'success': True,
+            'message': f'Alerta de prueba enviada a {sent_count} destinatarios',
+            'sent': sent_count,
+            'alert_name': alert['name']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error probando alerta personalizada: {e}")
+        return jsonify({'error': str(e)}), 500
+
+def get_available_resources():
+    """Obtener recursos disponibles del sistema"""
+    resources = {
+        "aws_instances": [],
+        "azure_instances": [],
+        "physical_servers": [],
+        "regions": set(),
+        "metrics": []
+    }
+    
+    try:
+        # Cargar credenciales de cloud para obtener recursos disponibles
+        if CLOUDS_CONFIG.exists():
+            with open(CLOUDS_CONFIG, 'r', encoding='utf-8') as f:
+                cloud_config = json.load(f)
+            
+            # AWS Resources
+            if 'aws' in cloud_config and cloud_config['aws'].get('access_key'):
+                try:
+                    import boto3
+                    session = boto3.Session(
+                        aws_access_key_id=cloud_config['aws']['access_key'],
+                        aws_secret_access_key=cloud_config['aws']['secret_key'],
+                        region_name=cloud_config['aws'].get('region', 'us-east-1')
+                    )
+                    
+                    ec2 = session.client('ec2')
+                    response = ec2.describe_instances()
+                    
+                    for reservation in response['Reservations']:
+                        for instance in reservation['Instances']:
+                            if instance['State']['Name'] in ['running', 'stopped']:
+                                name = 'N/A'
+                                for tag in instance.get('Tags', []):
+                                    if tag['Key'] == 'Name':
+                                        name = tag['Value']
+                                        break
+                                
+                                resources["aws_instances"].append({
+                                    "id": instance['InstanceId'],
+                                    "name": name,
+                                    "type": instance['InstanceType'],
+                                    "state": instance['State']['Name'],
+                                    "private_ip": instance.get('PrivateIpAddress', 'N/A'),
+                                    "public_ip": instance.get('PublicIpAddress', 'N/A'),
+                                    "zone": instance['Placement']['AvailabilityZone']
+                                })
+                                resources["regions"].add(instance['Placement']['AvailabilityZone'])
+                except Exception as e:
+                    logger.warning(f"Error obteniendo instancias AWS: {e}")
+            
+            # Azure Resources
+            if 'azure' in cloud_config and cloud_config['azure'].get('subscription_id'):
+                try:
+                    from azure.identity import ClientSecretCredential
+                    from azure.mgmt.compute import ComputeManagementClient
+                    from azure.mgmt.network import NetworkManagementClient
+                    
+                    credential = ClientSecretCredential(
+                        tenant_id=cloud_config['azure']['tenant_id'],
+                        client_id=cloud_config['azure']['client_id'],
+                        client_secret=cloud_config['azure']['client_secret']
+                    )
+                    
+                    compute_client = ComputeManagementClient(credential, cloud_config['azure']['subscription_id'])
+                    network_client = NetworkManagementClient(credential, cloud_config['azure']['subscription_id'])
+                    
+                    for vm in compute_client.virtual_machines.list_all():
+                        # Obtener IP addresses
+                        private_ip = 'N/A'
+                        public_ip = 'N/A'
+                        
+                        try:
+                            vm_detail = compute_client.virtual_machines.get(
+                                vm.id.split('/')[4], vm.name, expand='instanceView'
+                            )
+                            
+                            if vm_detail.network_profile:
+                                for nic_ref in vm_detail.network_profile.network_interfaces:
+                                    nic_name = nic_ref.id.split('/')[-1]
+                                    rg_name = nic_ref.id.split('/')[4]
+                                    nic = network_client.network_interfaces.get(rg_name, nic_name)
+                                    
+                                    if nic.ip_configurations:
+                                        private_ip = nic.ip_configurations[0].private_ip_address
+                                        if nic.ip_configurations[0].public_ip_address:
+                                            pip_name = nic.ip_configurations[0].public_ip_address.id.split('/')[-1]
+                                            pip = network_client.public_ip_addresses.get(rg_name, pip_name)
+                                            public_ip = pip.ip_address
+                        except:
+                            pass
+                        
+                        resources["azure_instances"].append({
+                            "id": vm.vm_id,
+                            "name": vm.name,
+                            "type": vm.hardware_profile.vm_size if vm.hardware_profile else 'N/A',
+                            "location": vm.location,
+                            "private_ip": private_ip,
+                            "public_ip": public_ip,
+                            "resource_group": vm.id.split('/')[4]
+                        })
+                        resources["regions"].add(vm.location)
+                        
+                except Exception as e:
+                    logger.warning(f"Error obteniendo VMs Azure: {e}")
+        
+        # Agregar servidores físicos/locales detectados
+        local_servers = []
+        
+        # Detectar información del servidor local
+        try:
+            import socket
+            import platform
+            
+            hostname = socket.gethostname()
+            try:
+                local_ip = socket.gethostbyname(hostname)
+            except:
+                local_ip = "127.0.0.1"
+            
+            # Intentar obtener FQDN
+            try:
+                fqdn = socket.getfqdn()
+                if fqdn != hostname and '.' in fqdn:
+                    display_name = fqdn
+                else:
+                    display_name = hostname
+            except:
+                display_name = hostname
+            
+            # Información del sistema
+            system_info = platform.system()
+            node_name = platform.node()
+            
+            local_servers.append({
+                "name": display_name,
+                "hostname": hostname,
+                "ip": local_ip,
+                "type": f"local-{system_info.lower()}",
+                "location": "Local",
+                "system": system_info,
+                "node": node_name
+            })
+            
+        except Exception as e:
+            logger.warning(f"Error detectando servidor local: {e}")
+            # Fallback
+            local_servers.append({
+                "name": "localhost",
+                "hostname": "localhost",
+                "ip": "127.0.0.1",
+                "type": "local",
+                "location": "Local",
+                "system": "Unknown",
+                "node": "localhost"
+            })
+        
+        resources["physical_servers"] = local_servers
+        resources["regions"].add("Local")
+        
+        # Convertir set a lista
+        resources["regions"] = list(resources["regions"])
+        
+        # Métricas disponibles
+        resources["metrics"] = [
+            {"id": "cpu_usage_percent", "name": "CPU Usage (%)", "unit": "%"},
+            {"id": "memory_usage_percent", "name": "Memory Usage (%)", "unit": "%"},
+            {"id": "disk_usage_percent", "name": "Disk Usage (%)", "unit": "%"},
+            {"id": "network_in_bytes", "name": "Network In", "unit": "bytes"},
+            {"id": "network_out_bytes", "name": "Network Out", "unit": "bytes"},
+            {"id": "load_average", "name": "Load Average", "unit": ""},
+            {"id": "response_time_ms", "name": "Response Time", "unit": "ms"},
+            {"id": "error_rate_percent", "name": "Error Rate", "unit": "%"}
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo recursos disponibles: {e}")
+    
+    return resources
+
+@app.route('/api/system-status')
+def get_system_status():
+    """Obtener estado detallado del sistema local"""
+    try:
+        import psutil
+        import platform
+        
+        # Información básica del sistema que siempre funciona
+        hostname = platform.node()
+        system = platform.system()
+        
+        # CPU básico
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        cpu_count = psutil.cpu_count()
+        
+        # Memoria básica
+        memory = psutil.virtual_memory()
+        
+        # Respuesta simplificada
+        status = {
+            "system": {
+                "hostname": hostname,
+                "system": system
+            },
+            "cpu": {
+                "usage_percent": round(cpu_percent, 1),
+                "count": cpu_count
+            },
+            "memory": {
+                "percent": round(memory.percent, 1),
+                "total_gb": round(memory.total / (1024**3), 1),
+                "used_gb": round(memory.used / (1024**3), 1)
+            },
+            "status": "active"
+        }
+        
+        return jsonify(status)
+        
+    except Exception as e:
+        logger.error(f"Error en system-status: {str(e)}")
+        return jsonify({"error": "Error interno", "message": str(e)}), 500
+
+@app.route('/api/available-resources')
+def api_available_resources():
+    """API endpoint para obtener recursos disponibles"""
+    try:
+        resources = get_available_resources()
+        return jsonify(resources)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/emails')
+def emails_page():
+    """Página de configuración de emails"""
+    try:
+        smtp_config = load_smtp_config()
+        recipients = load_email_recipients()
+        
+        # Verificar si usa configuración automática Gmail real
+        is_default = smtp_config.get('service') == 'gmail_real' or smtp_config.get('username') == 'wacry77@gmail.com'
+        
+        # No enviar password real
+        safe_config = smtp_config.copy()
+        safe_config['password'] = '***' if smtp_config.get('password') else ''
+        
+        # Usar template simplificado si es configuración predeterminada
+        template_name = 'emails_simple.html' if is_default else 'emails.html'
+        
+        return render_template(template_name,
+                             smtp_config=safe_config,
+                             recipients=recipients,
+                             configured=bool(smtp_config.get('username') and smtp_config.get('password')),
+                             is_default=is_default)
+    except Exception as e:
+        logger.error(f"Error en página de emails: {e}")
+        return f"Error en página de emails: {str(e)}", 500
+
+@app.route('/emails/advanced')
+def emails_advanced_page():
+    """Página de configuración avanzada de emails"""
+    try:
+        smtp_config = load_smtp_config()
+        recipients = load_email_recipients()
+        
+        # No enviar password real
+        safe_config = smtp_config.copy()
+        safe_config['password'] = '***' if smtp_config.get('password') else ''
+        
+        return render_template('emails.html',
+                             smtp_config=safe_config,
+                             recipients=recipients,
+                             configured=bool(smtp_config.get('username') and smtp_config.get('password')),
+                             is_default=False)
+    except Exception as e:
+        logger.error(f"Error en página de emails avanzada: {e}")
+        return f"Error en página de emails avanzada: {str(e)}", 500
+
+@app.route('/test-emails')
+def test_emails_page():
+    """Ruta de prueba para verificar que funciona"""
+    return "Ruta de prueba funcionando correctamente"
+
+# ===== COST OPTIMIZATION ENDPOINTS =====
+
+@app.route('/api/cost-optimization/discovered-instances', methods=['GET'])
+def get_discovered_instances():
+    """Obtener instancias descubiertas disponibles para análisis de costos"""
+    try:
+        instances = []
+        
+        # Agregar máquina física local
+        import socket
+        import psutil
+        try:
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+            
+            # Detectar tipo de sistema
+            system_info = "Physical Server"
+            try:
+                cpu_count = psutil.cpu_count()
+                memory_gb = round(psutil.virtual_memory().total / (1024**3), 1)
+                system_info = f"Physical ({cpu_count} CPUs, {memory_gb}GB RAM)"
+            except:
+                pass
+            
+            instances.append({
+                'id': hostname,
+                'name': f"Máquina Local ({hostname})",
+                'type': system_info,
+                'provider': 'physical',
+                'ip': local_ip,
+                'status': 'running',
+                'source': 'local_detection'
+            })
+        except Exception as e:
+            logger.warning(f"Error detectando máquina local: {e}")
+        
+        # Cargar instancias desde configuración de monitoreo
+        if MONITORING_CONFIG.exists():
+            with open(MONITORING_CONFIG, 'r', encoding='utf-8') as f:
+                monitoring_data = json.load(f)
+                
+            # Obtener instancias monitoreadas
+            monitored_instances = monitoring_data.get('monitored_instances', [])
+            for instance in monitored_instances:
+                instances.append({
+                    'id': instance.get('name', instance.get('ip', 'unknown')),
+                    'name': instance.get('name', f"Server-{instance.get('ip', 'unknown')}"),
+                    'type': instance.get('instance_type', 'unknown'),
+                    'provider': instance.get('provider', 'physical'),
+                    'ip': instance.get('ip', 'N/A'),
+                    'status': instance.get('status', 'unknown'),
+                    'source': 'monitored'
+                })
+        
+        # Cargar instancias desde credenciales cloud si están configuradas
+        if CLOUDS_CONFIG.exists():
+            with open(CLOUDS_CONFIG, 'r', encoding='utf-8') as f:
+                cloud_config = json.load(f)
+            
+            # AWS Instances
+            if 'aws' in cloud_config and cloud_config['aws'].get('access_key'):
+                try:
+                    import boto3
+                    session = boto3.Session(
+                        aws_access_key_id=cloud_config['aws']['access_key'],
+                        aws_secret_access_key=cloud_config['aws']['secret_key'],
+                        region_name=cloud_config['aws'].get('region', 'us-east-1')
+                    )
+                    ec2 = session.client('ec2', config=boto3.session.Config(
+                        read_timeout=10, connect_timeout=10
+                    ))
+                    
+                    response = ec2.describe_instances(MaxResults=20)
+                    for reservation in response['Reservations']:
+                        for instance in reservation['Instances']:
+                            if instance['State']['Name'] in ['running', 'stopped']:
+                                name = 'N/A'
+                                for tag in instance.get('Tags', []):
+                                    if tag['Key'] == 'Name':
+                                        name = tag['Value']
+                                        break
+                                
+                                instances.append({
+                                    'id': instance['InstanceId'],
+                                    'name': name,
+                                    'type': instance['InstanceType'],
+                                    'provider': 'aws',
+                                    'ip': instance.get('PrivateIpAddress', 'N/A'),
+                                    'status': instance['State']['Name'],
+                                    'source': 'aws_discovery',
+                                    'zone': instance['Placement']['AvailabilityZone']
+                                })
+                except Exception as e:
+                    logger.warning(f"Error obteniendo instancias AWS: {e}")
+            
+            # Azure VMs
+            if 'azure' in cloud_config and cloud_config['azure'].get('subscription_id'):
+                try:
+                    from azure.identity import ClientSecretCredential
+                    from azure.mgmt.compute import ComputeManagementClient
+                    
+                    credential = ClientSecretCredential(
+                        tenant_id=cloud_config['azure']['tenant_id'],
+                        client_id=cloud_config['azure']['client_id'],
+                        client_secret=cloud_config['azure']['client_secret']
+                    )
+                    compute_client = ComputeManagementClient(
+                        credential, cloud_config['azure']['subscription_id']
+                    )
+                    
+                    for vm in compute_client.virtual_machines.list_all():
+                        instances.append({
+                            'id': vm.name,
+                            'name': vm.name,
+                            'type': vm.hardware_profile.vm_size,
+                            'provider': 'azure',
+                            'ip': 'N/A',  # Requiere llamada adicional para obtener IP
+                            'status': 'unknown',
+                            'source': 'azure_discovery',
+                            'location': vm.location,
+                            'resource_group': vm.id.split('/')[4]
+                        })
+                except Exception as e:
+                    logger.warning(f"Error obteniendo VMs Azure: {e}")
+        
+        # Remover duplicados basados en ID
+        unique_instances = []
+        seen_ids = set()
+        for instance in instances:
+            if instance['id'] not in seen_ids:
+                unique_instances.append(instance)
+                seen_ids.add(instance['id'])
+        
+        return jsonify({
+            'success': True,
+            'instances': unique_instances,
+            'total_count': len(unique_instances),
+            'by_provider': {
+                'aws': len([i for i in unique_instances if i['provider'] == 'aws']),
+                'azure': len([i for i in unique_instances if i['provider'] == 'azure']),
+                'physical': len([i for i in unique_instances if i['provider'] == 'physical'])
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo instancias descubiertas: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/cost-optimization/analyze', methods=['POST'])
+def analyze_cost_optimization():
+    """Analizar instancia para optimización de costos"""
+    if not COST_OPTIMIZATION_ENABLED:
+        return jsonify({'success': False, 'error': 'Motor de optimización no disponible'}), 503
+    
+    try:
+        data = request.get_json()
+        instance_id = data.get('instance_id')
+        provider = data.get('provider', 'aws')
+        instance_type = data.get('instance_type', 't3.medium')
+        
+        if not instance_id:
+            return jsonify({'success': False, 'error': 'Instance ID requerido'}), 400
+        
+        # Obtener métricas (en implementación real, vendría de CloudWatch/Azure Monitor)
+        metrics = cost_optimizer.get_real_time_metrics(instance_id, provider)
+        
+        # Analizar utilización
+        analysis = cost_optimizer.analyze_resource_utilization(provider, instance_id, metrics)
+        
+        if not analysis:
+            return jsonify({'success': False, 'error': 'Error en análisis'}), 500
+        
+        # Generar recomendaciones
+        recommendations = cost_optimizer.generate_cost_recommendations(analysis, instance_type)
+        
+        # Agregar a caché para reporte semanal
+        cost_optimizer.recommendations_cache.extend(recommendations)
+        
+        return jsonify({
+            'success': True,
+            'analysis': analysis,
+            'recommendations': recommendations,
+            'total_recommendations': len(recommendations),
+            'potential_savings': sum(rec.get('estimated_monthly_savings', 0) for rec in recommendations if isinstance(rec.get('estimated_monthly_savings'), (int, float)))
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en análisis de costos: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/cost-optimization/download-report', methods=['GET'])
+def download_cost_report():
+    """Descargar reporte de optimización en formato JSON"""
+    if not COST_OPTIMIZATION_ENABLED:
+        return jsonify({'success': False, 'error': 'Motor de optimización no disponible'}), 503
+    
+    try:
+        # Generar reporte completo
+        report = cost_optimizer.generate_weekly_report()
+        
+        # Agregar metadatos adicionales
+        full_report = {
+            'metadata': {
+                'generated_at': datetime.now().isoformat(),
+                'system_version': '3.1.0-COST-OPTIMIZER',
+                'report_type': 'cost_optimization_analysis'
+            },
+            'report': report,
+            'recommendations_detail': cost_optimizer.recommendations_cache,
+            'pricing_sources': getattr(cost_optimizer, 'pricing_sources', {})
+        }
+        
+        # Crear respuesta con headers para descarga
+        from flask import Response
+        import json
+        
+        response = Response(
+            json.dumps(full_report, indent=2, ensure_ascii=False),
+            mimetype='application/json',
+            headers={
+                'Content-Disposition': f'attachment; filename=optimon_cost_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            }
+        )
+        
+        return response
+        
+    except ImportError:
+        return jsonify({
+            'success': False, 
+            'error': 'Para descargar XLSX instale: pip install openpyxl'
+        }), 500
+    except Exception as e:
+        logger.error(f"Error generando descarga XLSX: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/cost-optimization/weekly-report', methods=['GET'])
+def get_weekly_cost_report():
+    """Obtener reporte semanal de optimización de costos"""
+    if not COST_OPTIMIZATION_ENABLED:
+        return jsonify({'success': False, 'error': 'Motor de optimización no disponible'}), 503
+    
+    try:
+        report = cost_optimizer.generate_weekly_report()
+        
+        return jsonify({
+            'success': True,
+            'report': report
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generando reporte semanal: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/cost-optimization/download-xlsx', methods=['GET'])
+def download_cost_report_xlsx():
+    """Descargar reporte de optimización en formato XLSX"""
+    if not COST_OPTIMIZATION_ENABLED:
+        return jsonify({'success': False, 'error': 'Motor de optimización no disponible'}), 503
+    
+    try:
+        # Generar archivo XLSX
+        filename = cost_optimizer.generate_xlsx_report()
+        
+        # Enviar archivo
+        from flask import send_file
+        return send_file(
+            filename,
+            as_attachment=True,
+            download_name=f'optimon_cost_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generando descarga XLSX: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/cost-optimization/instances', methods=['GET'])
+def get_instances_alternative():
+    """Obtener instancias descubiertas para optimización de costos (ruta alternativa)"""
+    try:
+        instances = []
+        
+        # Cargar desde archivo de monitoreo si existe
+        if MONITORING_CONFIG.exists():
+            with open(MONITORING_CONFIG, 'r', encoding='utf-8') as f:
+                monitoring_data = json.load(f)
+                
+            # Instancias AWS
+            aws_instances = monitoring_data.get('aws_instances', [])
+            for instance in aws_instances:
+                instances.append({
+                    'id': instance.get('instance_id', 'N/A'),
+                    'name': instance.get('name', 'Sin nombre'),
+                    'type': instance.get('instance_type', 't3.medium'),
+                    'provider': 'aws',
+                    'state': instance.get('state', 'unknown'),
+                    'region': instance.get('availability_zone', 'us-east-1'),
+                    'private_ip': instance.get('private_ip', 'N/A'),
+                    'public_ip': instance.get('public_ip', 'N/A')
+                })
+            
+            # Instancias Azure
+            azure_instances = monitoring_data.get('azure_instances', [])
+            for instance in azure_instances:
+                instances.append({
+                    'id': instance.get('name', 'N/A'),
+                    'name': instance.get('name', 'Sin nombre'),
+                    'type': instance.get('vm_size', 'Standard_B2ms'),
+                    'provider': 'azure',
+                    'state': instance.get('power_state', 'unknown'),
+                    'region': instance.get('location', 'eastus'),
+                    'private_ip': instance.get('private_ip', 'N/A'),
+                    'public_ip': instance.get('public_ip', 'N/A')
+                })
+        
+        # Si no hay instancias, agregar ejemplos para demo
+        if not instances:
+            instances = [
+                {
+                    'id': 'i-0123456789abcdef0',
+                    'name': 'WebServer-Prod',
+                    'type': 't3.large',
+                    'provider': 'aws',
+                    'state': 'running',
+                    'region': 'us-east-1',
+                    'private_ip': '10.0.1.100',
+                    'public_ip': '54.123.45.67'
+                },
+                {
+                    'id': 'i-0987654321fedcba0',
+                    'name': 'Database-Prod',
+                    'type': 'm5.xlarge',
+                    'provider': 'aws',
+                    'state': 'running', 
+                    'region': 'us-east-1',
+                    'private_ip': '10.0.1.101',
+                    'public_ip': 'N/A'
+                },
+                {
+                    'id': 'vm-web-prod-001',
+                    'name': 'WebApp-Azure',
+                    'type': 'Standard_D2s_v3',
+                    'provider': 'azure',
+                    'state': 'running',
+                    'region': 'eastus',
+                    'private_ip': '10.1.0.4',
+                    'public_ip': '20.123.45.89'
+                }
+            ]
+        
+        return jsonify({
+            'success': True,
+            'instances': instances,
+            'total_count': len(instances)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo instancias descubiertas: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/cost-optimization/recommendations/<instance_id>', methods=['GET'])
+def get_instance_recommendations(instance_id):
+    """Obtener recomendaciones específicas para una instancia"""
+    if not COST_OPTIMIZATION_ENABLED:
+        return jsonify({'success': False, 'error': 'Motor de optimización no disponible'}), 503
+    
+    try:
+        provider = request.args.get('provider', 'aws')
+        instance_type = request.args.get('type', 't3.medium')
+        
+        # Obtener métricas y generar recomendaciones
+        metrics = cost_optimizer.get_real_time_metrics(instance_id, provider)
+        analysis = cost_optimizer.analyze_resource_utilization(provider, instance_id, metrics)
+        
+        if analysis:
+            recommendations = cost_optimizer.generate_cost_recommendations(analysis, instance_type)
+            
+            return jsonify({
+                'success': True,
+                'instance_id': instance_id,
+                'recommendations': recommendations,
+                'last_analysis': analysis.get('analysis_timestamp'),
+                'utilization_summary': {
+                    'cpu_score': analysis.get('cpu_utilization', {}).get('score'),
+                    'memory_score': analysis.get('memory_utilization', {}).get('score'),
+                    'usage_pattern': analysis.get('usage_pattern')
+                }
+            })
+        else:
+            return jsonify({'success': False, 'error': 'No se pudo analizar la instancia'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error obteniendo recomendaciones para {instance_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/alerts', methods=['POST'])
+def receive_alert():
+    """Recibir alertas del Alertmanager via webhook"""
+    try:
+        alert_data = request.get_json()
+        
+        # Log de la alerta recibida
+        logger.info(f"Alerta recibida: {alert_data}")
+        
+        # Procesar cada alerta en el payload
+        if 'alerts' in alert_data:
+            for alert in alert_data['alerts']:
+                alert_name = alert.get('labels', {}).get('alertname', 'Unknown')
+                instance = alert.get('labels', {}).get('instance', 'Unknown')
+                status = alert.get('status', 'Unknown')
+                
+                # Log detallado
+                logger.info(f"Procesando alerta: {alert_name} en {instance} - Estado: {status}")
+                
+                # Aquí podrías agregar lógica adicional para procesar la alerta
+                # Por ejemplo, enviar emails, notificaciones, etc.
+                
+                # Si es una alerta de disk_usage_percent, log especial
+                if 'disk_usage_percent' in alert_name.lower() or 'diskusagealert' in alert_name:
+                    logger.warning(f"🚨 ALERTA DE DISCO: {alert_name} en {instance}")
+                    
+        return jsonify({'success': True, 'message': 'Alerta procesada correctamente'})
+        
+    except Exception as e:
+        logger.error(f"Error procesando alerta: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/alerts/active')
+def get_active_alerts():
+    """Obtener alertas activas de Prometheus para mostrar en el portal"""
+    try:
+        # Consultar alertas activas desde Prometheus
+        prometheus_url = "http://localhost:9090/api/v1/alerts"
+        
+        try:
+            response = requests.get(prometheus_url, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                alerts = data.get('data', {}).get('alerts', [])
+                
+                # Filtrar y organizar alertas
+                active_alerts = []
+                physical_alerts = []
+                
+                for alert in alerts:
+                    alert_info = {
+                        'name': alert.get('labels', {}).get('alertname', 'Unknown'),
+                        'instance': alert.get('labels', {}).get('instance', 'Unknown'),
+                        'severity': alert.get('labels', {}).get('severity', 'unknown'),
+                        'description': alert.get('annotations', {}).get('description', 'No description'),
+                        'summary': alert.get('annotations', {}).get('summary', 'No summary'),
+                        'state': alert.get('state', 'unknown'),
+                        'active_at': alert.get('activeAt', ''),
+                        'value': alert.get('value', ''),
+                        'labels': alert.get('labels', {}),
+                        'type': 'physical' if alert.get('labels', {}).get('alert_type') == 'physical_server' else 'system'
+                    }
+                    
+                    active_alerts.append(alert_info)
+                    
+                    # Separar alertas físicas
+                    if alert_info['type'] == 'physical':
+                        physical_alerts.append(alert_info)
+                
+                return jsonify({
+                    'success': True,
+                    'total_alerts': len(active_alerts),
+                    'physical_alerts': len(physical_alerts),
+                    'alerts': active_alerts,
+                    'physical_servers_alerts': physical_alerts
+                })
+                
+        except requests.RequestException as e:
+            logger.error(f"Error connecting to Prometheus: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'No se pudo conectar a Prometheus',
+                'alerts': [],
+                'physical_servers_alerts': []
+            })
+        
+        return jsonify({
+            'success': True,
+            'total_alerts': 0,
+            'physical_alerts': 0,
+            'alerts': [],
+            'physical_servers_alerts': []
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting active alerts: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/cost-optimization')
+def cost_optimization_dashboard():
+    """Dashboard de optimización de costos"""
+    try:
+        return render_template('cost_optimization.html', 
+                             cost_optimization_enabled=COST_OPTIMIZATION_ENABLED)
+    except Exception as e:
+        logger.error(f"Error en dashboard de optimización: {e}")
+        return f"Error cargando dashboard de optimización: {str(e)}", 500
+
+# =====================================================
+# INFRASTRUCTURE AS CODE (IaC) ENDPOINTS
+# =====================================================
+
+@app.route('/infrastructure')
+def infrastructure_page():
+    """Página del generador de infraestructura como código"""
+    return render_template('infrastructure.html')
+
+@app.route('/api/infrastructure/preview', methods=['POST'])
+def preview_infrastructure_legacy():
+    """Generar vista previa del código de infraestructura (legacy)"""
+    try:
+        config = request.get_json()
+        
+        # Importar el generador de IaC
+        from iac_generator import iac_generator
+        
+        # Generar infraestructura
+        files = iac_generator.generate_infrastructure(config)
+        
+        # Obtener vista previa del archivo main.tf
+        preview = files.get('main.tf', 'No se pudo generar vista previa')
+        
+        # Limitar la longitud para la vista previa
+        if len(preview) > 2000:
+            preview = preview[:2000] + "\n\n... (archivo completo disponible en descarga)"
+        
+        return jsonify({
+            'success': True,
+            'preview': preview,
+            'file_count': len(files)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating infrastructure preview: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/infrastructure/download-latest')
+def download_latest_infrastructure():
+    """Descargar la infraestructura generada más reciente como ZIP"""
+    try:
+        import os
+        import zipfile
+        from pathlib import Path
+        import tempfile
+        from flask import send_file
+        
+        # Encontrar la carpeta más reciente en generated_iac
+        generated_dir = Path("generated_iac")
+        if not generated_dir.exists():
+            return jsonify({'error': 'No hay infraestructura generada'}), 404
+        
+        # Buscar la carpeta más reciente
+        folders = [f for f in generated_dir.iterdir() if f.is_dir()]
+        if not folders:
+            return jsonify({'error': 'No hay infraestructura generada'}), 404
+        
+        latest_folder = max(folders, key=lambda x: x.stat().st_mtime)
+        
+        # Crear archivo ZIP temporal
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        
+        with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in latest_folder.rglob('*'):
+                if file_path.is_file() and file_path.name != 'optimon_config.json':
+                    arcname = file_path.relative_to(latest_folder)
+                    zipf.write(file_path, arcname)
+        
+        temp_file.close()
+        
+        # Nombre del archivo para descarga
+        download_name = f"{latest_folder.name}_infrastructure.zip"
+        
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/zip'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading infrastructure: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/infrastructure/templates/<provider>')
+def get_infrastructure_templates(provider):
+    """Obtener templates disponibles para un proveedor"""
+    try:
+        from iac_generator import iac_generator
+        
+        templates = iac_generator.get_templates_for_provider(provider)
+        
+        return jsonify({
+            'success': True,
+            'provider': provider,
+            'templates': templates
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting templates for {provider}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/infrastructure/cost-estimate', methods=['POST'])
+def estimate_infrastructure_cost():
+    """Estimar costos de infraestructura"""
+    try:
+        config = request.get_json()
+        provider = config.get('provider')
+        resources = config.get('compute_resources', [])
+        
+        # Costos aproximados por hora (estos serían más precisos con APIs reales)
+        cost_tables = {
+            'aws': {
+                't3.micro': 0.0104,
+                't3.small': 0.0208,
+                't3.medium': 0.0416,
+                'm5.large': 0.096
+            },
+            'azure': {
+                'Standard_B1s': 0.0104,
+                'Standard_B2s': 0.0416,
+                'Standard_D2s_v3': 0.096
+            }
+        }
+        
+        total_hourly = 0
+        resource_costs = []
+        
+        for resource in resources:
+            instance_type = resource.get('instance_type')
+            hourly_cost = cost_tables.get(provider, {}).get(instance_type, 0.05)
+            total_hourly += hourly_cost
+            
+            resource_costs.append({
+                'name': resource.get('name'),
+                'type': instance_type,
+                'hourly_cost': hourly_cost,
+                'monthly_cost': hourly_cost * 24 * 30
+            })
+        
+        monthly_cost = total_hourly * 24 * 30
+        yearly_cost = monthly_cost * 12
+        
+        return jsonify({
+            'success': True,
+            'costs': {
+                'hourly': round(total_hourly, 4),
+                'monthly': round(monthly_cost, 2),
+                'yearly': round(yearly_cost, 2),
+                'resources': resource_costs
+            },
+            'currency': 'USD',
+            'disclaimer': 'Estimación aproximada. Los costos reales pueden variar.'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error estimating infrastructure cost: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# =============================================================================
+# REPLICACIÓN DE INFRAESTRUCTURA COMO CÓDIGO (IaC)
+# =============================================================================
+
+# Importar motor de replicación
+try:
+    from infrastructure_replication_engine import replication_engine
+    INFRASTRUCTURE_REPLICATION_ENABLED = True
+    logger.info("🔧 Motor de Replicación de Infraestructura: CARGADO")
+except ImportError as e:
+    logger.warning(f"⚠️  Motor de Replicación de Infraestructura no disponible: {e}")
+    INFRASTRUCTURE_REPLICATION_ENABLED = False
+
+@app.route('/infrastructure-replication')
+def infrastructure_replication_page():
+    """Página principal de replicación de infraestructura"""
+    return render_template('infrastructure_replication.html', 
+                         infrastructure_enabled=INFRASTRUCTURE_REPLICATION_ENABLED)
+
+@app.route('/api/infrastructure/generate', methods=['POST'])
+def generate_infrastructure():
+    """Generar código Infrastructure as Code basado en instancias descubiertas"""
+    if not INFRASTRUCTURE_REPLICATION_ENABLED:
+        return jsonify({'success': False, 'error': 'Motor de replicación no disponible'}), 503
+    
+    try:
+        data = request.json
+        provider = data.get('provider')
+        format_type = data.get('format', 'terraform')
+        instances = data.get('instances', [])
+        
+        if not provider:
+            return jsonify({'success': False, 'error': 'Proveedor requerido'}), 400
+        
+        if not instances:
+            return jsonify({'success': False, 'error': 'No se encontraron instancias para replicar'}), 400
+        
+        logger.info(f"Generando infraestructura {provider} para {len(instances)} instancias")
+        
+        # Generar código según el proveedor
+        if provider == 'aws':
+            result = replication_engine.generate_terraform_aws(instances)
+        elif provider == 'azure':
+            result = replication_engine.generate_terraform_azure(instances)
+        else:
+            return jsonify({'success': False, 'error': f'Proveedor {provider} no soportado'}), 400
+        
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+        
+        logger.info(f"✅ Infraestructura generada: {result.get('project_name')}")
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error generando infraestructura: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/infrastructure/download/<project_name>')
+def download_infrastructure(project_name):
+    """Descargar proyecto de infraestructura como ZIP"""
+    try:
+        import zipfile
+        import tempfile
+        from pathlib import Path
+        
+        project_dir = Path("generated_infrastructure") / project_name
+        
+        if not project_dir.exists():
+            return jsonify({'success': False, 'error': 'Proyecto no encontrado'}), 404
+        
+        # Crear archivo ZIP temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_file:
+            with zipfile.ZipFile(tmp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in project_dir.rglob('*'):
+                    if file_path.is_file():
+                        arcname = file_path.relative_to(project_dir)
+                        zipf.write(file_path, arcname)
+            
+            # Enviar archivo
+            return send_file(
+                tmp_file.name,
+                as_attachment=True,
+                download_name=f"{project_name}.zip",
+                mimetype='application/zip'
+            )
+        
+    except Exception as e:
+        logger.error(f"Error descargando proyecto: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/infrastructure/preview/<project_name>')
+def preview_infrastructure(project_name):
+    """Obtener vista previa del código generado"""
+    try:
+        from pathlib import Path
+        
+        project_dir = Path("generated_infrastructure") / project_name
+        
+        if not project_dir.exists():
+            return jsonify({'success': False, 'error': 'Proyecto no encontrado'}), 404
+        
+        files = {}
+        for file_path in project_dir.iterdir():
+            if file_path.is_file() and file_path.suffix in ['.tf', '.md', '.yml', '.yaml']:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        files[file_path.name] = f.read()
+                except Exception as e:
+                    files[file_path.name] = f"Error leyendo archivo: {e}"
+        
+        return jsonify({
+            'success': True,
+            'files': files,
+            'project_name': project_name
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo vista previa: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # ===== PUNTO DE ENTRADA =====
 
+# Imports para monitoreo físico
+import ipaddress
+import concurrent.futures
+import subprocess
+
+# Agregar al final del archivo, antes de if __name__ == '__main__':
+
+# ================================
+# MONITOREO FÍSICO - NUEVA FUNCIONALIDAD
+# ================================
+
+def get_local_network_ranges():
+    """Obtener rangos de red locales automáticamente"""
+    try:
+        ranges = []
+        
+        # Obtener IP local
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        
+        # Determinar rango basado en IP local
+        ip_parts = local_ip.split('.')
+        if ip_parts[0] == '192' and ip_parts[1] == '168':
+            ranges.append(f"192.168.{ip_parts[2]}.0/24")
+        elif ip_parts[0] == '10':
+            ranges.append(f"10.{ip_parts[1]}.{ip_parts[2]}.0/24")
+        elif ip_parts[0] == '172' and 16 <= int(ip_parts[1]) <= 31:
+            ranges.append(f"172.{ip_parts[1]}.{ip_parts[2]}.0/24")
+        
+        # Agregar rangos comunes como backup
+        common_ranges = ['192.168.1.0/24', '192.168.0.0/24', '10.0.0.0/24']
+        for range_ip in common_ranges:
+            if range_ip not in ranges:
+                ranges.append(range_ip)
+        
+        return ranges[:3]  # Limitar a 3 rangos para velocidad
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo rangos de red: {e}")
+        return ['192.168.1.0/24', '192.168.0.0/24']
+
+def check_optimon_agent(ip):
+    """Verificar si hay un OptiMon Agent en la IP especificada"""
+    try:
+        response = requests.get(f"http://{ip}:9999/info", timeout=3)
+        if response.status_code == 200:
+            agent_info = response.json()
+            
+            if agent_info.get('agent_type') == 'optimon-physical':
+                # Obtener métricas adicionales
+                try:
+                    metrics_response = requests.get(f"http://{ip}:9999/metrics", timeout=3)
+                    metrics = metrics_response.json() if metrics_response.status_code == 200 else {}
+                except:
+                    metrics = {}
+                
+                return {
+                    'ip': ip,
+                    'agent_id': agent_info['agent_id'],
+                    'hostname': agent_info['hostname'],
+                    'os': agent_info['os'],
+                    'version': agent_info['version'],
+                    'last_seen': datetime.now().isoformat(),
+                    'status': 'online',
+                    'current_metrics': metrics
+                }
+    except:
+        pass
+    
+    return None
+
+def save_physical_servers_config(servers):
+    """Guardar configuración de servidores físicos encontrados"""
+    try:
+        config_file = 'config/physical_servers.json'
+        os.makedirs('config', exist_ok=True)
+        
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                'last_scan': datetime.now().isoformat(),
+                'servers': servers
+            }, f, indent=2, ensure_ascii=False)
+            
+        logger.info(f"Guardada configuración de {len(servers)} servidores físicos")
+        return True
+    except Exception as e:
+        logger.error(f"Error guardando configuración de servidores: {e}")
+        return False
+
+def load_physical_servers_config():
+    """Cargar configuración de servidores físicos"""
+    try:
+        config_file = 'config/physical_servers.json'
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {'servers': [], 'last_scan': None}
+    except Exception as e:
+        logger.error(f"Error cargando configuración de servidores: {e}")
+        return {'servers': [], 'last_scan': None}
+
+# Rutas para monitoreo físico
+@app.route('/physical-monitoring')
+def physical_monitoring():
+    """Página de monitoreo de infraestructura física"""
+    try:
+        # Cargar servidores guardados
+        config = load_physical_servers_config()
+        
+        return render_template('physical_monitoring.html',
+                             servers=config.get('servers', []),
+                             last_scan=config.get('last_scan'))
+    except Exception as e:
+        logger.error(f"Error en página de monitoreo físico: {e}")
+        return render_template('error.html', error=str(e)), 500
+
+@app.route('/node-exporter-monitoring')
+def node_exporter_monitoring():
+    """Página de monitoreo con Node Exporter"""
+    try:
+        return render_template('node_exporter_monitoring.html')
+    except Exception as e:
+        logger.error(f"Error en página de Node Exporter: {e}")
+        return render_template('error.html', error=str(e)), 500
+
+@app.route('/api/physical/discover-all', methods=['POST'])
+def discover_all_physical_servers():
+    """Escanear toda la red buscando OptiMon Agents"""
+    try:
+        # Obtener rangos de red
+        network_ranges = get_local_network_ranges()
+        logger.info(f"Escaneando redes: {network_ranges}")
+        
+        all_servers = []
+        
+        for network in network_ranges:
+            logger.info(f"🔍 Escaneando red: {network}")
+            
+            # Escanear IPs en paralelo para velocidad
+            with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+                # Crear tareas para cada IP
+                network_obj = ipaddress.IPv4Network(network, strict=False)
+                future_to_ip = {
+                    executor.submit(check_optimon_agent, str(ip)): ip 
+                    for ip in list(network_obj.hosts())[:50]  # Limitar a 50 IPs por velocidad
+                }
+                
+                # Recolectar resultados
+                for future in concurrent.futures.as_completed(future_to_ip, timeout=30):
+                    ip = future_to_ip[future]
+                    try:
+                        server_info = future.result()
+                        if server_info:
+                            all_servers.append(server_info)
+                            logger.info(f"✅ Encontrado OptiMon Agent en {ip}")
+                    except:
+                        continue
+        
+        # Guardar configuración de servidores encontrados
+        save_physical_servers_config(all_servers)
+        
+        return jsonify({
+            'success': True,
+            'servers_found': len(all_servers),
+            'servers': all_servers,
+            'networks_scanned': network_ranges,
+            'scan_timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en descubrimiento de servidores: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'servers_found': 0,
+            'servers': []
+        }), 500
+
+@app.route('/api/physical/server/<agent_id>')
+def get_physical_server_details(agent_id):
+    """Obtener detalles de un servidor físico específico"""
+    try:
+        config = load_physical_servers_config()
+        
+        for server in config.get('servers', []):
+            if server['agent_id'] == agent_id:
+                # Actualizar métricas en tiempo real
+                try:
+                    metrics_response = requests.get(f"http://{server['ip']}:9999/metrics", timeout=5)
+                    if metrics_response.status_code == 200:
+                        server['current_metrics'] = metrics_response.json()
+                        server['last_update'] = datetime.now().isoformat()
+                except:
+                    server['status'] = 'offline'
+                
+                return jsonify(server)
+        
+        return jsonify({'error': 'Servidor no encontrado'}), 404
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo detalles del servidor: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/download/optimon-agent')
+def download_agent():
+    """Descargar OptiMon Physical Agent"""
+    try:
+        return send_file('optimon_agent_simple.py', 
+                        as_attachment=True,
+                        download_name='optimon_agent.py',
+                        mimetype='text/plain')
+    except Exception as e:
+        logger.error(f"Error descargando agent: {e}")
+        return jsonify({'error': 'Agent no disponible'}), 404
+
+# Inicialización de la aplicación
 if __name__ == '__main__':
     logger.info("🚀 Iniciando OptiMon Sistema Unificado...")
-    logger.info("📋 Versión: 3.0.0-UNIFIED")
+    logger.info("📋 Versión: 3.1.0-COST-OPTIMIZER")
     logger.info("🌐 Puerto: 5000")
+    if COST_OPTIMIZATION_ENABLED:
+        logger.info("💰 Motor de Optimización de Costos: ACTIVADO")
     logger.info("=" * 60)
     
     try:

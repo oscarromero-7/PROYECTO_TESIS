@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "Probando",
+    "description": "prueba fina",
+    "metric": "disk_usage_percent",
+    "threshold": 20.0,
+    "operator": ">",
+    "severity": "critical",
+    "enabled": true,
+    "created_at": "2025-10-26T19:27:46.243336",
+    "tags": [
+      "Pruebas"
+    ],
+    "notification_channels": [
+      "email"
+    ],
+    "resource_type": "physical_server",
+    "resource_name": "",
+    "resource_ip": "",
+    "region": "",
+    "environment": "staging",
+    "resource_details": "",
+    "updated_at": "2025-10-26T19:32:46.558806"
+  }
+]

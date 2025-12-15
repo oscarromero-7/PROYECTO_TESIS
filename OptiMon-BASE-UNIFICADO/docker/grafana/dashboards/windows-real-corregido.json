@@ -1,0 +1,287 @@
+{
+  "panels": [
+    {
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "# 💻 **Sistema Windows Real - Host Físico**\n\n**🔍 Fuente de datos:** Windows Exporter (puerto 9182)  \n**⚙️ Tipo:** Sistema operativo Windows del host físico  \n**📍 Ubicación:** Fuera de Docker, ejecutándose directamente en el sistema operativo  \n**📊 Métricas incluidas:** CPU, memoria, discos, red, servicios y procesos Windows",
+        "mode": "markdown"
+      },
+      "title": "🖥️ Información del Sistema Windows",
+      "type": "text"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(windows_cpu_time_total{mode=\"idle\",job=\"windows_local\"}[5m])) * 100)",
+          "legendFormat": "CPU Windows %"
+        }
+      ],
+      "title": "🔥 CPU Usage - Sistema Windows",
+      "type": "gauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "100 - ((windows_memory_available_bytes{job=\"windows_local\"} / windows_memory_physical_total_bytes{job=\"windows_local\"}) * 100)",
+          "legendFormat": "Memoria Windows %"
+        }
+      ],
+      "title": "💾 Memoria - Sistema Windows",
+      "type": "gauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "100 - ((windows_logical_disk_free_bytes{job=\"windows_local\",volume=\"C:\"} / windows_logical_disk_size_bytes{job=\"windows_local\",volume=\"C:\"}) * 100)",
+          "legendFormat": "Disco C: %"
+        }
+      ],
+      "title": "💽 Espacio en Disco C:",
+      "type": "gauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {
+                "color": "blue",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "time() - windows_system_boot_time_timestamp{job=\"windows_local\"}",
+          "legendFormat": "Uptime Sistema"
+        }
+      ],
+      "title": "⏱️ Uptime Windows",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(windows_cpu_time_total{mode=\"idle\",job=\"windows_local\"}[5m])) * 100)",
+          "legendFormat": "CPU Total %"
+        },
+        {
+          "expr": "avg(rate(windows_cpu_time_total{mode=\"user\",job=\"windows_local\"}[5m])) * 100",
+          "legendFormat": "CPU User %"
+        },
+        {
+          "expr": "avg(rate(windows_cpu_time_total{mode=\"privileged\",job=\"windows_local\"}[5m])) * 100",
+          "legendFormat": "CPU System %"
+        }
+      ],
+      "title": "📈 Tendencia CPU Windows",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "windows_memory_physical_total_bytes{job=\"windows_local\"}",
+          "legendFormat": "Memoria Total"
+        },
+        {
+          "expr": "windows_memory_available_bytes{job=\"windows_local\"}",
+          "legendFormat": "Memoria Disponible"
+        },
+        {
+          "expr": "windows_memory_committed_bytes{job=\"windows_local\"}",
+          "legendFormat": "Memoria Comprometida"
+        }
+      ],
+      "title": "📊 Memoria Windows Detallada",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          },
+          "unit": "binBps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "rate(windows_net_bytes_received_total{job=\"windows_local\"}[5m])",
+          "legendFormat": "{{nic}} - Recibido"
+        },
+        {
+          "expr": "rate(windows_net_bytes_sent_total{job=\"windows_local\"}[5m])",
+          "legendFormat": "{{nic}} - Enviado"
+        }
+      ],
+      "title": "🌐 Red Windows - Tráfico de Red",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "tags": [
+    "optimon",
+    "windows",
+    "host",
+    "sistema-real"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "OptiMon - Sistema Windows Real",
+  "uid": "optimon-windows-real"
+}

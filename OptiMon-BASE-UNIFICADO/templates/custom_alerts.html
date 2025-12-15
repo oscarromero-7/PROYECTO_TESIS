@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alertas Personalizadas - OptiMon</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .alert-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .alert-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .severity-critical { border-left: 5px solid #dc3545; }
+        .severity-warning { border-left: 5px solid #ffc107; }
+        .severity-info { border-left: 5px solid #17a2b8; }
+        .operator-badge {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark gradient-bg">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line me-2"></i>OptiMon
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/"><i class="fas fa-tachometer-alt me-1"></i>Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/emails"><i class="fas fa-envelope me-1"></i>Email</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/custom-alerts"><i class="fas fa-exclamation-triangle me-1"></i>Alertas</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2><i class="fas fa-exclamation-triangle text-warning me-2"></i>Alertas Personalizadas</h2>
+                        <p class="text-muted">Crea y gestiona alertas personalizadas para tu infraestructura</p>
+                    </div>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAlertModal">
+                        <i class="fas fa-plus me-2"></i>Nueva Alerta
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alertas existentes -->
+        <div class="row" id="alertsContainer">
+            {% if alerts %}
+                {% for alert in alerts %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card alert-card severity-{{ alert.severity }}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-bell me-2"></i>{{ alert.name }}
+                            </h6>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick="editAlert({{ alert.id }})">
+                                        <i class="fas fa-edit me-2"></i>Editar
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="testAlert({{ alert.id }})">
+                                        <i class="fas fa-vial me-2"></i>Probar
+                                    </a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="deleteAlert({{ alert.id }})">
+                                        <i class="fas fa-trash me-2"></i>Eliminar
+                                    </a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small">{{ alert.description or 'Sin descripción' }}</p>
+                            
+                            <!-- Información de la fuente -->
+                            {% if alert.resource_name %}
+                            <div class="mb-2 p-2 bg-light rounded">
+                                <small class="text-muted d-block">
+                                    <i class="fas fa-server me-1"></i>
+                                    <strong>{{ alert.resource_name }}</strong>
+                                    {% if alert.resource_type %}
+                                        ({{ alert.resource_type }})
+                                    {% endif %}
+                                </small>
+                                {% if alert.region or alert.environment %}
+                                <small class="text-muted d-block">
+                                    {% if alert.region %}
+                                        <i class="fas fa-map-marker-alt me-1"></i>{{ alert.region }}
+                                    {% endif %}
+                                    {% if alert.environment %}
+                                        <span class="ms-2"><i class="fas fa-tag me-1"></i>{{ alert.environment }}</span>
+                                    {% endif %}
+                                </small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="border-end">
+                                        <strong class="d-block">{{ alert.metric }}</strong>
+                                        <small class="text-muted">Métrica</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <strong class="d-block">
+                                        <span class="operator-badge">{{ alert.operator }}</span> {{ alert.threshold }}
+                                    </strong>
+                                    <small class="text-muted">Umbral</small>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <span class="badge bg-{{ 'danger' if alert.severity == 'critical' else 'warning' if alert.severity == 'warning' else 'info' }}">
+                                    {{ alert.severity.upper() }}
+                                </span>
+                                <span class="badge bg-{{ 'success' if alert.enabled else 'secondary' }} ms-2">
+                                    {{ 'ACTIVA' if alert.enabled else 'INACTIVA' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">No hay alertas personalizadas</h4>
+                        <p class="text-muted">Crea tu primera alerta personalizada para comenzar</p>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAlertModal">
+                            <i class="fas fa-plus me-2"></i>Crear Primera Alerta
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal para agregar/editar alerta -->
+    <div class="modal fade" id="addAlertModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header gradient-bg">
+                    <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Nueva Alerta Personalizada</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="alertForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Nombre de la Alerta *</label>
+                                    <input type="text" class="form-control" id="alertName" required>
+                                    <div class="form-text">Nombre único para identificar la alerta</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Severidad *</label>
+                                    <select class="form-select" id="alertSeverity" required>
+                                        <option value="">Seleccionar...</option>
+                                        <option value="info">Info - Información</option>
+                                        <option value="warning">Warning - Advertencia</option>
+                                        <option value="critical">Critical - Crítico</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Descripción</label>
+                            <textarea class="form-control" id="alertDescription" rows="2" placeholder="Descripción opcional de la alerta"></textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Métrica *</label>
+                                    <select class="form-select" id="alertMetric" required>
+                                        <option value="">Seleccionar...</option>
+                                        <option value="cpu_usage_percent">CPU Usage (%)</option>
+                                        <option value="memory_usage_percent">Memory Usage (%)</option>
+                                        <option value="disk_usage_percent">Disk Usage (%)</option>
+                                        <option value="network_in_bytes">Network In (Bytes)</option>
+                                        <option value="network_out_bytes">Network Out (Bytes)</option>
+                                        <option value="load_average">Load Average</option>
+                                        <option value="response_time_ms">Response Time (ms)</option>
+                                        <option value="error_rate_percent">Error Rate (%)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Operador *</label>
+                                    <select class="form-select" id="alertOperator" required>
+                                        <option value="">Seleccionar...</option>
+                                        <option value=">">Mayor que (>)</option>
+                                        <option value=">=">Mayor o igual (>=)</option>
+                                        <option value="<">Menor que (<)</option>
+                                        <option value="<=">Menor o igual (<=)</option>
+                                        <option value="==">Igual a (==)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Umbral *</label>
+                                    <input type="number" class="form-control" id="alertThreshold" step="0.1" required>
+                                    <div class="form-text">Valor numérico del umbral</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección de Fuente/Origen -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-server me-2"></i>Fuente de la Alerta</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Tipo de Recurso *</label>
+                                            <select class="form-select" id="alertResourceType" required onchange="loadAvailableResources()">
+                                                <option value="">Seleccionar...</option>
+                                                <option value="aws_ec2">AWS EC2 Instance</option>
+                                                <option value="azure_vm">Azure Virtual Machine</option>
+                                                <option value="physical_server">Servidor Físico/Local</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Recurso Disponible *</label>
+                                            <select class="form-select" id="alertResourceSelect" required onchange="fillResourceDetails()">
+                                                <option value="">Seleccione tipo de recurso primero...</option>
+                                            </select>
+                                            <div class="form-text">Recursos detectados en el sistema</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Información automática del recurso -->
+                                <div id="resourceInfo" class="d-none">
+                                    <div class="alert alert-info">
+                                        <h6><i class="fas fa-info-circle me-2"></i>Información del Recurso</h6>
+                                        <div id="resourceDetails"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Región/Zona</label>
+                                            <select class="form-select" id="alertRegion">
+                                                <option value="">Detectar automáticamente...</option>
+                                            </select>
+                                            <div class="form-text">Se detectará automáticamente del recurso</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Ambiente</label>
+                                            <select class="form-select" id="alertEnvironment">
+                                                <option value="">Seleccionar...</option>
+                                                <option value="production">Producción</option>
+                                                <option value="staging">Staging</option>
+                                                <option value="development">Desarrollo</option>
+                                                <option value="testing">Testing</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Campos ocultos para almacenar información detallada -->
+                                <input type="hidden" id="alertResourceName">
+                                <input type="hidden" id="alertResourceIP">
+                                <input type="hidden" id="alertResourceDetails">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tags (opcional)</label>
+                            <input type="text" class="form-control" id="alertTags" placeholder="servidor,produccion,web">
+                            <div class="form-text">Separar con comas</div>
+                        </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="alertEnabled" checked>
+                            <label class="form-check-label" for="alertEnabled">
+                                Alerta activa
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="saveAlert()">
+                        <i class="fas fa-save me-2"></i>Guardar Alerta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentAlertId = null;
+        let availableResources = null;
+
+        // Cargar recursos disponibles al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSystemResources();
+        });
+
+        function loadSystemResources() {
+            return fetch('/api/available-resources')
+                .then(response => response.json())
+                .then(data => {
+                    availableResources = data;
+                    console.log('Recursos disponibles:', data);
+                    return data;
+                })
+                .catch(error => {
+                    console.error('Error cargando recursos:', error);
+                    throw error;
+                });
+        }
+
+        function loadAvailableResources() {
+            const resourceType = document.getElementById('alertResourceType').value;
+            const resourceSelect = document.getElementById('alertResourceSelect');
+            const regionSelect = document.getElementById('alertRegion');
+            
+            // Limpiar selectors
+            resourceSelect.innerHTML = '<option value=""><i class="fas fa-spinner fa-spin me-2"></i>Cargando recursos...</option>';
+            regionSelect.innerHTML = '<option value="">Detectar automáticamente...</option>';
+            
+            if (!resourceType) {
+                resourceSelect.innerHTML = '<option value="">Seleccione tipo de recurso primero...</option>';
+                return;
+            }
+
+            // Si no hay recursos disponibles, cargarlos con indicador visual
+            if (!availableResources) {
+                resourceSelect.innerHTML = '<option value=""><i class="fas fa-cloud-download-alt me-2"></i>Consultando cloud providers...</option>';
+                
+                // Mostrar indicador de carga en el UI
+                const loadingAlert = document.createElement('div');
+                loadingAlert.className = 'alert alert-info d-flex align-items-center mt-2';
+                loadingAlert.id = 'loadingAlert';
+                loadingAlert.innerHTML = `
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <div>Consultando credenciales de AWS y Azure... Esto puede tomar unos momentos.</div>
+                `;
+                
+                const container = document.getElementById('alertResourceType').parentNode;
+                container.appendChild(loadingAlert);
+                
+                loadSystemResources()
+                    .then(() => {
+                        // Remover indicador de carga
+                        const alert = document.getElementById('loadingAlert');
+                        if (alert) alert.remove();
+                        
+                        // Recargar recursos
+                        loadAvailableResources();
+                    })
+                    .catch(() => {
+                        // Remover indicador de carga
+                        const alert = document.getElementById('loadingAlert');
+                        if (alert) alert.remove();
+                        
+                        resourceSelect.innerHTML = '<option value="">Error cargando recursos</option>';
+                    });
+                return;
+            }
+
+            resourceSelect.innerHTML = '<option value="">Seleccionar recurso...</option>';
+
+            // Cargar recursos según el tipo
+            let resources = [];
+            let regions = new Set();
+
+            if (resourceType === 'aws_ec2') {
+                resources = availableResources.aws_instances || [];
+                resources.forEach(r => regions.add(r.zone));
+            } else if (resourceType === 'azure_vm') {
+                resources = availableResources.azure_instances || [];
+                resources.forEach(r => regions.add(r.location));
+            } else if (resourceType === 'physical_server') {
+                resources = availableResources.physical_servers || [];
+                resources.forEach(r => regions.add(r.location));
+            }
+
+            // Poblar selector de recursos
+            resources.forEach(resource => {
+                const option = document.createElement('option');
+                option.value = JSON.stringify(resource);
+                
+                let displayName = '';
+                if (resourceType === 'aws_ec2') {
+                    displayName = `${resource.name} (${resource.id}) - ${resource.state}`;
+                } else if (resourceType === 'azure_vm') {
+                    displayName = `${resource.name} (${resource.type}) - ${resource.location}`;
+                } else if (resourceType === 'physical_server') {
+                    displayName = `${resource.name} (${resource.ip})`;
+                }
+                
+                option.textContent = displayName;
+                resourceSelect.appendChild(option);
+            });
+
+            // Poblar selector de regiones
+            regions.forEach(region => {
+                const option = document.createElement('option');
+                option.value = region;
+                option.textContent = region;
+                regionSelect.appendChild(option);
+            });
+
+            if (resources.length === 0) {
+                resourceSelect.innerHTML = '<option value="">No hay recursos disponibles de este tipo</option>';
+            }
+        }
+
+        function fillResourceDetails() {
+            const resourceSelect = document.getElementById('alertResourceSelect');
+            const resourceInfo = document.getElementById('resourceInfo');
+            const resourceDetails = document.getElementById('resourceDetails');
+            
+            if (!resourceSelect.value) {
+                resourceInfo.classList.add('d-none');
+                return;
+            }
+
+            try {
+                const resource = JSON.parse(resourceSelect.value);
+                const resourceType = document.getElementById('alertResourceType').value;
+                
+                // Llenar campos ocultos
+                if (resourceType === 'aws_ec2') {
+                    document.getElementById('alertResourceName').value = resource.id;
+                    document.getElementById('alertResourceIP').value = resource.private_ip;
+                    document.getElementById('alertRegion').value = resource.zone;
+                    
+                    resourceDetails.innerHTML = `
+                        <strong>Instancia:</strong> ${resource.name} (${resource.id})<br>
+                        <strong>Tipo:</strong> ${resource.type}<br>
+                        <strong>Estado:</strong> ${resource.state}<br>
+                        <strong>IP Privada:</strong> ${resource.private_ip}<br>
+                        <strong>IP Pública:</strong> ${resource.public_ip}<br>
+                        <strong>Zona:</strong> ${resource.zone}
+                    `;
+                } else if (resourceType === 'azure_vm') {
+                    document.getElementById('alertResourceName').value = resource.name;
+                    document.getElementById('alertResourceIP').value = resource.private_ip;
+                    document.getElementById('alertRegion').value = resource.location;
+                    
+                    resourceDetails.innerHTML = `
+                        <strong>VM:</strong> ${resource.name}<br>
+                        <strong>Tipo:</strong> ${resource.type}<br>
+                        <strong>Grupo de Recursos:</strong> ${resource.resource_group}<br>
+                        <strong>IP Privada:</strong> ${resource.private_ip}<br>
+                        <strong>IP Pública:</strong> ${resource.public_ip}<br>
+                        <strong>Ubicación:</strong> ${resource.location}
+                    `;
+                } else if (resourceType === 'physical_server') {
+                    document.getElementById('alertResourceName').value = resource.name;
+                    document.getElementById('alertResourceIP').value = resource.ip;
+                    document.getElementById('alertRegion').value = resource.location;
+                    
+                    resourceDetails.innerHTML = `
+                        <strong>Servidor:</strong> ${resource.name}<br>
+                        <strong>IP:</strong> ${resource.ip}<br>
+                        <strong>Tipo:</strong> ${resource.type}<br>
+                        <strong>Ubicación:</strong> ${resource.location}
+                    `;
+                }
+                
+                // Almacenar detalles completos
+                document.getElementById('alertResourceDetails').value = JSON.stringify(resource);
+                
+                resourceInfo.classList.remove('d-none');
+                
+            } catch (error) {
+                console.error('Error procesando recurso:', error);
+                resourceInfo.classList.add('d-none');
+            }
+        }
+
+        function saveAlert() {
+            const formData = {
+                name: document.getElementById('alertName').value,
+                description: document.getElementById('alertDescription').value,
+                metric: document.getElementById('alertMetric').value,
+                operator: document.getElementById('alertOperator').value,
+                threshold: document.getElementById('alertThreshold').value,
+                severity: document.getElementById('alertSeverity').value,
+                enabled: document.getElementById('alertEnabled').checked,
+                tags: document.getElementById('alertTags').value.split(',').map(t => t.trim()).filter(t => t),
+                // Campos de fuente mejorados
+                resource_type: document.getElementById('alertResourceType').value,
+                resource_name: document.getElementById('alertResourceName').value,
+                resource_ip: document.getElementById('alertResourceIP').value,
+                region: document.getElementById('alertRegion').value,
+                environment: document.getElementById('alertEnvironment').value,
+                resource_details: document.getElementById('alertResourceDetails').value
+            };
+
+            const url = currentAlertId ? `/api/custom-alerts/${currentAlertId}` : '/api/custom-alerts';
+            const method = currentAlertId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error guardando la alerta');
+            });
+        }
+
+        function editAlert(alertId) {
+            // Obtener datos de la alerta
+            fetch(`/api/custom-alerts`)
+                .then(response => response.json())
+                .then(data => {
+                    const alert = data.alerts.find(a => a.id === alertId);
+                    if (alert) {
+                        // Llenar formulario con datos existentes
+                        document.getElementById('alertName').value = alert.name;
+                        document.getElementById('alertDescription').value = alert.description || '';
+                        document.getElementById('alertMetric').value = alert.metric;
+                        document.getElementById('alertOperator').value = alert.operator;
+                        document.getElementById('alertThreshold').value = alert.threshold;
+                        document.getElementById('alertSeverity').value = alert.severity;
+                        document.getElementById('alertEnabled').checked = alert.enabled;
+                        document.getElementById('alertTags').value = (alert.tags || []).join(', ');
+                        
+                        // Configurar modo de edición
+                        currentAlertId = alertId;
+                        document.querySelector('.modal-title').innerHTML = '<i class="fas fa-edit me-2"></i>Editar Alerta Personalizada';
+                        
+                        // Cargar recursos si es necesario
+                        loadSystemResources();
+                        
+                        // Mostrar modal
+                        const modal = new bootstrap.Modal(document.getElementById('addAlertModal'));
+                        modal.show();
+                        
+                        // Si hay tipo de recurso, configurarlo
+                        if (alert.resource_type) {
+                            setTimeout(() => {
+                                document.getElementById('alertResourceType').value = alert.resource_type || '';
+                                document.getElementById('alertEnvironment').value = alert.environment || '';
+                                
+                                // Cargar recursos específicos
+                                loadAvailableResources();
+                                
+                                // Si hay recurso específico seleccionado
+                                if (alert.resource_id) {
+                                    setTimeout(() => {
+                                        document.getElementById('alertResourceSelect').value = alert.resource_id;
+                                    }, 500);
+                                }
+                            }, 100);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error cargando datos de la alerta');
+                });
+        }
+
+        function testAlert(alertId) {
+            if (confirm('¿Enviar alerta de prueba a todos los destinatarios?')) {
+                fetch(`/api/custom-alerts/${alertId}/test`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`✅ Alerta de prueba enviada exitosamente a ${data.sent} destinatarios`);
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error enviando alerta de prueba');
+                });
+            }
+        }
+
+        function deleteAlert(alertId) {
+            if (confirm('¿Estás seguro de eliminar esta alerta?')) {
+                fetch(`/api/custom-alerts/${alertId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error eliminando la alerta');
+                });
+            }
+        }
+
+        // Limpiar formulario cuando se cierra el modal
+        document.getElementById('addAlertModal').addEventListener('hidden.bs.modal', function() {
+            document.getElementById('alertForm').reset();
+            currentAlertId = null;
+            document.querySelector('.modal-title').innerHTML = '<i class="fas fa-plus me-2"></i>Nueva Alerta Personalizada';
+        });
+    </script>
+</body>
+</html>

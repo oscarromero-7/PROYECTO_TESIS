@@ -35,12 +35,11 @@ scrape_configs:
         - "172.191.59.230:9100"
         labels:
           provider: "azure"
-
   - job_name: "aws_instances"
     static_configs:
       - targets:
-        - "3.84.243.0:9100"
-        - "54.242.96.44:9100"
-        - "54.90.155.80:9100"
+        - "54.242.7.97:9100"
+        - "34.207.186.220:9100"
+        - "34.230.21.233:9100"
         labels:
           provider: "aws"

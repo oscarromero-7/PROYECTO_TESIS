@@ -1,0 +1,46 @@
+{
+  "monitored_instances": [
+    {
+      "name": "web-server-prod",
+      "ip": "192.168.1.100",
+      "instance_type": "t3.large",
+      "provider": "aws",
+      "status": "running",
+      "port": 9100,
+      "added_date": "2025-10-26T10:00:00Z"
+    },
+    {
+      "name": "database-server",
+      "ip": "192.168.1.101", 
+      "instance_type": "r5.xlarge",
+      "provider": "aws",
+      "status": "running",
+      "port": 9100,
+      "added_date": "2025-10-26T10:05:00Z"
+    },
+    {
+      "name": "dev-environment",
+      "ip": "192.168.1.102",
+      "instance_type": "Standard_B2ms",
+      "provider": "azure",
+      "status": "running",
+      "port": 9100,
+      "added_date": "2025-10-26T10:10:00Z"
+    },
+    {
+      "name": "backup-server",
+      "ip": "192.168.1.103",
+      "instance_type": "unknown",
+      "provider": "physical",
+      "status": "running", 
+      "port": 9100,
+      "added_date": "2025-10-26T10:15:00Z"
+    }
+  ],
+  "monitoring_settings": {
+    "scrape_interval": "15s",
+    "evaluation_interval": "15s",
+    "retention": "15d"
+  },
+  "last_updated": "2025-10-26T17:00:00Z"
+}

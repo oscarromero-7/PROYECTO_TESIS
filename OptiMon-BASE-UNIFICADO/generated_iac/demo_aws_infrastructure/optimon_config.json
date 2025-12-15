@@ -1,0 +1,72 @@
+{
+  "provider": "aws",
+  "project_name": "optimon-demo",
+  "environment": "dev",
+  "region": "us-west-2",
+  "include_networking": true,
+  "networking": {
+    "vpc_cidr": "10.0.0.0/16",
+    "public_subnet_cidr": "10.0.1.0/24",
+    "private_subnet_cidr": "10.0.2.0/24",
+    "availability_zone": "us-west-2a"
+  },
+  "compute_resources": [
+    {
+      "name": "web-server-1",
+      "instance_type": "t3.micro",
+      "volume_size": 20,
+      "volume_type": "gp3",
+      "security_rules": [
+        {
+          "type": "ingress",
+          "from_port": 22,
+          "to_port": 22,
+          "protocol": "tcp",
+          "cidr": "0.0.0.0/0",
+          "description": "SSH access"
+        },
+        {
+          "type": "ingress",
+          "from_port": 80,
+          "to_port": 80,
+          "protocol": "tcp",
+          "cidr": "0.0.0.0/0",
+          "description": "HTTP access"
+        },
+        {
+          "type": "ingress",
+          "from_port": 443,
+          "to_port": 443,
+          "protocol": "tcp",
+          "cidr": "0.0.0.0/0",
+          "description": "HTTPS access"
+        }
+      ],
+      "user_data": "yum install -y httpd\\nsystemctl start httpd\\nsystemctl enable httpd"
+    },
+    {
+      "name": "app-server-1",
+      "instance_type": "t3.small",
+      "volume_size": 30,
+      "volume_type": "gp3",
+      "security_rules": [
+        {
+          "type": "ingress",
+          "from_port": 22,
+          "to_port": 22,
+          "protocol": "tcp",
+          "cidr": "10.0.0.0/16",
+          "description": "SSH from VPC"
+        },
+        {
+          "type": "ingress",
+          "from_port": 8080,
+          "to_port": 8080,
+          "protocol": "tcp",
+          "cidr": "10.0.1.0/24",
+          "description": "App port from public subnet"
+        }
+      ]
+    }
+  ]
+}
